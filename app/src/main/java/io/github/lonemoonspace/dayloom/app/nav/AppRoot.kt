@@ -30,7 +30,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -80,6 +84,15 @@ internal object Routes {
     fun module(id: String) = MODULE_PREFIX + id
     fun moduleIdOf(route: String?): String? = route?.takeIf { it.startsWith(MODULE_PREFIX) }?.removePrefix(MODULE_PREFIX)
 }
+
+/**
+ * The home slogan's handwriting fonts (Long Cang for Chinese, Parisienne for English). `res/font-zh` holds Long Cang cut
+ * down to the Chinese slogan's glyphs (see `scripts/fonts/subset_slogan.py`), so the font follows the app language the same
+ * way the string does.
+ * 首页标语的手写字体（中文龙藏体，英文 Parisienne）。`res/font-zh` 里是只保留中文标语字形的龙藏体（见
+ * `scripts/fonts/subset_slogan.py`），字体与文案一样跟随 App 语言。
+ */
+private val SloganFont = FontFamily(Font(R.font.slogan))
 
 /**
  * Shows the onboarding until it has been finished once, then the app. Nothing is drawn before the settings are read, so a
@@ -192,7 +205,15 @@ private fun MainShell(graph: AppGraph, pendingIntent: Intent?) {
             contentColor = MaterialTheme.colorScheme.onBackground,
             topBar = {
                 when (route) {
-                    Routes.HOME -> CompactTopBar(title = stringResource(R.string.app_name)) {
+                    Routes.HOME -> CompactTopBar(
+                        title = stringResource(R.string.app_name),
+                        subtitle = stringResource(R.string.app_slogan),
+                        subtitleStyle = MaterialTheme.typography.titleMedium.copy(
+                            fontFamily = SloganFont,
+                            fontWeight = FontWeight.Normal,
+                            fontSize = 18.sp,
+                        ),
+                    ) {
                         if (homeState.userOrder.isNotEmpty()) {
                             IconButton(onClick = { editing = !editing }) {
                                 Icon(
@@ -271,6 +292,7 @@ private fun MainShell(graph: AppGraph, pendingIntent: Intent?) {
                                 onModuleEnabled = vm::setModuleEnabled,
                                 onMorningBrief = vm::setMorningBrief,
                                 onMorningBriefTime = vm::setMorningBriefTime,
+                                onThemePreset = vm::setThemePreset,
                             ) {
                                 val places by sharedVm.placeList.collectAsStateWithLifecycle()
                                 val editor by sharedVm.editor.collectAsStateWithLifecycle()
