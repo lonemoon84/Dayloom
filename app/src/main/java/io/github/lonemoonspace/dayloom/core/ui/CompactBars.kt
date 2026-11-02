@@ -1,8 +1,8 @@
 package io.github.lonemoonspace.dayloom.core.ui
 
-// A 44dp glass top bar and a 52dp floating glass bottom bar instead of the Material 3 components, whose 64dp + 80dp
+// A 44dp glass top bar and a 56dp floating glass bottom bar instead of the Material 3 components, whose 64dp + 80dp
 // minimum heights take about a sixth of a phone screen. Content scrolls under both bars.
-// 44dp 玻璃顶栏与 52dp 悬浮玻璃底栏，代替 Material 3 自带组件：后者 64dp + 80dp 的最小高度会占掉手机屏幕约六分之一。内容从两条栏下面滚过。
+// 44dp 玻璃顶栏与 56dp 悬浮玻璃底栏，代替 Material 3 自带组件：后者 64dp + 80dp 的最小高度会占掉手机屏幕约六分之一。内容从两条栏下面滚过。
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -36,11 +36,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -48,6 +50,12 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun CompactTopBar(
     title: String,
+    /**
+     * Optional muted line after the title, baseline-aligned; it ellipsizes first so the title is never cut.
+     * 标题后可选的一行浅色小字，与标题基线对齐；空间不够时先省略它，标题不被截断。
+     */
+    subtitle: String? = null,
+    subtitleStyle: TextStyle = MaterialTheme.typography.labelMedium,
     actions: @Composable RowScope.() -> Unit = {},
 ) {
     val edge = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
@@ -73,8 +81,19 @@ fun CompactTopBar(
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
+                modifier = if (subtitle == null) Modifier.weight(1f) else Modifier.alignByBaseline(),
             )
+            if (subtitle != null) {
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    text = subtitle,
+                    style = subtitleStyle,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f).alignByBaseline(),
+                )
+            }
             actions()
             Spacer(Modifier.width(4.dp))
         }
@@ -108,7 +127,9 @@ fun CompactNavBar(tabs: List<NavTab>) {
             modifier = Modifier
                 .widthIn(max = 420.dp)
                 .fillMaxWidth()
-                .height(52.dp)
+                .height(56.dp)
+                // A faint accent-tinted shadow lifts the pill off busy content. / 很淡的主色阴影，让胶囊从内容上浮起来。
+                .shadow(elevation = 6.dp, shape = PillShape, spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
                 .clip(PillShape)
                 .glass()
                 .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f), PillShape)

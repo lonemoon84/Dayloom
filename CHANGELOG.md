@@ -4,6 +4,32 @@ Each version has an English section followed by a Chinese one. The heading must 
 looks it up literally.
 每个版本先写英文、再写中文。标题必须恰好是 `## X.Y.Z`：发版 workflow 按字面查找。
 
+## Unreleased
+
+- Themes: Settings has a new "Theme" card. Besides the wallpaper colours (still the default) there are five hand-picked
+  schemes: Nordic Dawn, Warm Linen and Sage Forest in light and dark, and the dark-only OLED Obsidian (pure black page)
+  and Aurora Twilight. Each choice shows dots for its page, card and accent colours. In light mode the dark-only schemes
+  are greyed out and the app uses Nordic Dawn until the phone turns dark. The palettes come from a contribution by
+  lonemoon84 (PR #32); a few accents were darkened so the weather card text stays readable, and every scheme is checked
+  for contrast.
+- Look: cards get a hairline border and a soft shadow, status pills and line tags a thin border of their own colour, and
+  the floating tab bar is a little taller with a faint shadow. The weather card draws the temperature as a smooth curve
+  with a fading fill.
+- Calendar header: a greeting (Good morning / afternoon / evening) above the clock, and the date with the lunar date in a
+  card that lines up with the cards below. A long date stays whole; the lunar date gives way.
+- Home top bar: the slogan "All threads, for your day" (Chinese: 千丝万缕，织成一日) in handwriting fonts, Parisienne and
+  Long Cang, next to the title.
+
+- 主题：设置里新增「外观与主题」卡片。除了默认的壁纸取色，还有五套精选配色：北欧晨曦、暖阳木棉、森林晨露（各有浅色与深色），
+  以及只有深色的曜石极夜（页面纯黑）和深空暮紫。每个选项带三个色点，分别是页面、卡片和主色。浅色模式下只有深色的两套置灰，
+  App 先用北欧晨曦，手机切到深色时再生效。配色来自 lonemoon84 的贡献（PR #32）；为了让天气卡上的文字看得清，调深了几处主色，
+  每套配色都经过对比度检查。
+- 外观：卡片加了细边和柔和的阴影，状态胶囊和线路号加了同色细边，悬浮底栏稍微加高并带一层淡淡的阴影。天气卡的温度改成平滑
+  曲线，下面是渐淡的填充。
+- 日历页头：时钟上方加了问候语（早上好 / 下午好 / 晚上好）；日期和农历放进一张卡片，与下面的卡片对齐。日期较长时完整显示，
+  由农历让位。
+- 首页顶栏：标题旁加了标语「千丝万缕，织成一日」（英文 "All threads, for your day"），分别用龙藏体和 Parisienne 手写字体。
+
 ## 0.2.5
 
 - Train card: "Note crossing delays" now also warns while your train still shows on time. Bane NOR sometimes adds the

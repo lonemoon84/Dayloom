@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
@@ -27,10 +28,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.lonemoonspace.dayloom.R
+import io.github.lonemoonspace.dayloom.core.ui.InfoCard
 import io.github.lonemoonspace.dayloom.core.ui.rememberMinuteTick
 import io.github.lonemoonspace.dayloom.core.ui.rememberPatternFormatter
 import io.github.lonemoonspace.dayloom.core.ui.rememberTimeFormatter
 import io.github.lonemoonspace.dayloom.core.ui.theme.statusColors
+import io.github.lonemoonspace.dayloom.feature.calendar.domain.Greeting
+import io.github.lonemoonspace.dayloom.feature.calendar.domain.GreetingPolicy
 import io.github.lonemoonspace.dayloom.feature.calendar.domain.Holiday
 import io.github.lonemoonspace.dayloom.feature.calendar.domain.HolidayCountry
 import io.github.lonemoonspace.dayloom.feature.calendar.domain.HolidayPolicy
@@ -41,33 +45,49 @@ import java.time.temporal.ChronoUnit
 import java.time.temporal.IsoFields
 
 /**
- * The clock header (no card around it), in two aligned rows: the time with the holiday and the solar term stacked on the
- * right, then the date and week with the stem-branch year and lunar date on the right.
- * 时钟页头（不套卡片），两行对齐：时间与右侧上下排列的节日和节气；日期、周数与右侧的干支年和农历日期。
+ * The clock header: a greeting over the time, with the holiday and the solar term stacked on the right, then a card with
+ * the date and week and, on the right, the stem-branch year and lunar date. The card is an [InfoCard], so its edges line up
+ * with the cards below.
+ * 时钟页头：问候语在时间上方，右侧上下排列节日和节气；下面一张卡片放日期、周数，右侧是干支年和农历日期。这张卡片就是
+ * [InfoCard]，左右边缘与下面的卡片对齐。
  */
 @Composable
 internal fun CalendarHeader(showLunar: Boolean, countries: Set<HolidayCountry>, lunar: LunarProvider) {
     val now = rememberMinuteTick()
     val date = now.toLocalDate()
     val day = remember(date, showLunar) { if (showLunar) lunar.lunarDate(date) else null }
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 4.dp, end = 4.dp, top = 2.dp, bottom = 4.dp),
-    ) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = now.format(rememberTimeFormatter()),
-                fontSize = 44.sp,
-                lineHeight = 46.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
-            )
-            Spacer(Modifier.weight(1f))
+    Column(Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 4.dp, end = 4.dp, top = 2.dp),
+            verticalAlignment = Alignment.Bottom,
+        ) {
+            // The header sits on the page, not in a card, so it names its colours instead of inheriting them.
+            // 这部分直接放在页面上而不是卡片里，所以明确指定颜色，不依赖继承。
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(greetingText(GreetingPolicy.at(now.toLocalTime()))),
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1,
+                )
+                Text(
+                    text = now.format(rememberTimeFormatter()),
+                    fontSize = 46.sp,
+                    lineHeight = 48.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    maxLines = 1,
+                )
+            }
             // Sized to the widest pill so the stacked pills share one width and one right edge.
             // 宽度取最宽的胶囊，上下几个胶囊等宽且右侧对齐。
             Column(
-                modifier = Modifier.width(IntrinsicSize.Max),
+                modifier = Modifier
+                    .width(IntrinsicSize.Max)
+                    .padding(bottom = 6.dp),
                 horizontalAlignment = Alignment.End,
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
@@ -75,39 +95,47 @@ internal fun CalendarHeader(showLunar: Boolean, countries: Set<HolidayCountry>, 
                 if (day != null) SolarTermText(date, lunar)
             }
         }
-        Row(Modifier.fillMaxWidth()) {
-            // ISO 8601 weeks (Monday first), as Norwegian calendars count them. / 周数按 ISO 8601（周一为一周开始），与挪威日历一致。
-            // Unweighted, so the date is measured first and the lunar text gives way on a narrow screen.
-            // 不加权重，日期先测量，窄屏上让农历文字让位。
-            Text(
-                text = stringResource(
-                    R.string.calendar_date_week,
-                    date.format(rememberPatternFormatter("MMMMEEEEd")),
-                    date.get(IsoFields.WEEK_OF_WEEK_BASED_YEAR),
-                ),
-                style = MaterialTheme.typography.bodyMedium,
-                // The header sits on the page, not in a card, so it names its colour instead of inheriting one.
-                // 页头直接放在页面上而不是卡片里，所以明确指定颜色，不依赖继承。
-                color = MaterialTheme.colorScheme.onBackground,
-                maxLines = 1,
-                modifier = Modifier.alignByBaseline(),
-            )
-            if (day != null) {
-                Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.height(8.dp))
+        InfoCard(title = null) {
+            Row(Modifier.fillMaxWidth()) {
+                // ISO 8601 weeks (Monday first), as Norwegian calendars count them. / 周数按 ISO 8601（周一为一周开始），与挪威日历一致。
+                // Unweighted, so the date is measured first and the lunar text gives way on a narrow screen.
+                // 不加权重，日期先测量，窄屏上让农历文字让位。
                 Text(
-                    text = stringResource(R.string.calendar_lunar_line, lunarYearText(day), lunarDateText(day)),
+                    text = stringResource(
+                        R.string.calendar_date_week,
+                        date.format(rememberPatternFormatter("MMMMEEEEd")),
+                        date.get(IsoFields.WEEK_OF_WEEK_BASED_YEAR),
+                    ),
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.End,
+                    fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier
-                        .weight(1f)
-                        .alignByBaseline(),
+                    modifier = Modifier.alignByBaseline(),
                 )
+                if (day != null) {
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        text = stringResource(R.string.calendar_lunar_line, lunarYearText(day), lunarDateText(day)),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.End,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .weight(1f)
+                            .alignByBaseline(),
+                    )
+                }
             }
         }
     }
+}
+
+@StringRes
+private fun greetingText(greeting: Greeting): Int = when (greeting) {
+    Greeting.MORNING -> R.string.calendar_greeting_morning
+    Greeting.AFTERNOON -> R.string.calendar_greeting_afternoon
+    Greeting.EVENING -> R.string.calendar_greeting_evening
 }
 
 /**

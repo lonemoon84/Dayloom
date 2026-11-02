@@ -1,7 +1,9 @@
 package io.github.lonemoonspace.dayloom.core.ui.theme
 
+import android.content.Context
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
@@ -46,26 +48,22 @@ private val AppTypography: Typography = Typography().run {
 }
 
 /**
- * Colours come from the wallpaper (Material You, always available from minSdk 33). Only the tones are fixed: the page is
- * one step darker than the cards in light mode and one step lighter in dark mode, so cards stand out on any wallpaper, and
- * status colours keep their contrast because neutral tones do not depend on the hue (see StatusColorsContrastTest).
- * 颜色取自壁纸（Material You，minSdk 33 起总是可用）。固定的只有明度：浅色时页面比卡片暗一级，深色时卡片比页面亮一级，
- * 任何壁纸下卡片都分得开；中性色的明度与色相无关，状态色的对比度因此不变（见 StatusColorsContrastTest）。
+ * Colours come from the wallpaper (Material You, always available from minSdk 33) unless the user picked a [ThemePreset]
+ * (saved by id; empty = wallpaper). Only the tones are fixed: the page is one step darker than the cards in light mode and
+ * one step lighter in dark mode, so cards stand out in every scheme, and status colours keep their contrast (see
+ * StatusColorsContrastTest).
+ * 颜色默认取自壁纸（Material You，minSdk 33 起总是可用），用户选了 [ThemePreset] 时用预设（按 id 保存，空 = 壁纸）。固定的只有
+ * 明度：浅色时页面比卡片暗一级，深色时卡片比页面亮一级，任何配色下卡片都分得开，状态色的对比度也不变（见
+ * StatusColorsContrastTest）。
  */
 @Composable
-fun DayloomTheme(content: @Composable () -> Unit) {
+fun DayloomTheme(preset: String = "", content: @Composable () -> Unit) {
     val dark = isSystemInDarkTheme()
     val context = LocalContext.current
-    val wallpaper = if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-    val scheme = wallpaper.copy(background = if (dark) wallpaper.surface else wallpaper.surfaceContainer)
-    val surfaces = if (dark) {
-        AppSurfaces(card = scheme.surfaceContainer, tile = scheme.surfaceContainerHigh)
-    } else {
-        AppSurfaces(card = scheme.surfaceContainerLowest, tile = scheme.surfaceContainerLow)
-    }
+    val scheme = ThemePreset.of(preset)?.schemeFor(dark) ?: wallpaperScheme(context, dark)
     CompositionLocalProvider(
         LocalStatusColors provides if (dark) DarkStatusColors else LightStatusColors,
-        LocalAppSurfaces provides surfaces,
+        LocalAppSurfaces provides appSurfacesFor(scheme, dark),
     ) {
         MaterialTheme(
             colorScheme = scheme,
@@ -74,4 +72,13 @@ fun DayloomTheme(content: @Composable () -> Unit) {
             content = content,
         )
     }
+}
+
+/**
+ * The wallpaper scheme with the page one step below the cards in light mode. Also used for the swatches in the settings.
+ * 壁纸配色，浅色时页面比卡片暗一级。设置里的色点也用它。
+ */
+fun wallpaperScheme(context: Context, dark: Boolean): ColorScheme {
+    val wallpaper = if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+    return wallpaper.copy(background = if (dark) wallpaper.surface else wallpaper.surfaceContainer)
 }

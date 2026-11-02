@@ -1,29 +1,85 @@
 package io.github.lonemoonspace.dayloom.core.ui.theme
 
+import androidx.compose.material3.ColorScheme
 import androidx.compose.ui.graphics.Color
+import io.github.lonemoonspace.dayloom.core.ui.STATUS_CHIP_TINT
 import kotlin.math.pow
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** WCAG contrast of the status colours on the card, tile and chip backgrounds. / 状态色在卡片、小块与徽标底色上的 WCAG 对比度。 */
+/**
+ * WCAG contrast of the status colours on the card, tile and chip backgrounds, and of the text pairs each theme preset
+ * draws: the weather card, line tags, muted text and the greeting on the page.
+ * 状态色在卡片、小块与徽标底色上的 WCAG 对比度，以及每套主题预设实际用到的文字配色：天气卡、线路号、浅色文字和页面上的问候语。
+ */
 class StatusColorsContrastTest {
 
+    /** Every scheme the app can show, with its mode. / App 可能显示的每套配色及其模式。 */
+    private val presetSchemes: List<Triple<String, ColorScheme, Boolean>> = ThemePreset.entries.flatMap { preset ->
+        listOfNotNull(
+            preset.light?.let { Triple("${preset.id} light", it, false) },
+            Triple("${preset.id} dark", preset.dark, true),
+        )
+    }
+
     @Test
-    fun `status colours reach AA text contrast on cards, tiles and chips in both themes`() {
-        for ((theme, colors, surfaces) in listOf(
-            Triple("light", LightStatusColors, LightAppSurfaces),
-            Triple("dark", DarkStatusColors, DarkAppSurfaces),
-        )) {
+    fun `status colours reach AA text contrast on cards, tiles and chips in every scheme`() {
+        val surfaces = listOf(
+            Triple("wallpaper light", LightStatusColors, LightAppSurfaces),
+            Triple("wallpaper dark", DarkStatusColors, DarkAppSurfaces),
+        ) + presetSchemes.map { (name, scheme, dark) ->
+            Triple(name, if (dark) DarkStatusColors else LightStatusColors, appSurfacesFor(scheme, dark))
+        }
+        for ((theme, colors, s) in surfaces) {
             for ((name, color) in colors.named()) {
-                for ((bgName, bg) in listOf("card" to surfaces.card, "tile" to surfaces.tile)) {
+                for ((bgName, bg) in listOf("card" to s.card, "tile" to s.tile)) {
                     assertTrue("$theme $name on $bgName", contrast(color, bg) >= AA_TEXT)
-                    // Status chips are the colour at 12% over the background. / 状态徽标底色是状态色 12% 叠在背景上。
-                    val chip = blend(color, bg, 0.12f)
+                    val chip = blend(color, bg, STATUS_CHIP_TINT)
                     assertTrue("$theme $name chip on $bgName", contrast(color, chip) >= AA_TEXT)
                 }
             }
         }
+    }
+
+    @Test
+    fun `preset text pairs reach AA contrast`() {
+        for ((name, s, dark) in presetSchemes) {
+            val surfaces = appSurfacesFor(s, dark)
+            // The weather card: primary with white text in light mode, primary container in dark mode.
+            // 天气卡：浅色时主色配白字，深色时主色容器色。
+            val hero = if (dark) s.primaryContainer to s.onPrimaryContainer else s.primary to s.onPrimary
+            assertTrue("$name weather card", contrast(hero.first, hero.second) >= AA_TEXT)
+            assertTrue("$name line tag", contrast(s.secondaryContainer, s.onSecondaryContainer) >= AA_TEXT)
+            assertTrue("$name replacement-bus tag", contrast(s.tertiaryContainer, s.onTertiaryContainer) >= AA_TEXT)
+            assertTrue("$name greeting on page", contrast(s.primary, s.background) >= AA_TEXT)
+            assertTrue("$name text on page", contrast(s.onBackground, s.background) >= AA_TEXT)
+            for ((bgName, bg) in listOf("card" to surfaces.card, "tile" to surfaces.tile, "page" to s.background)) {
+                assertTrue("$name muted text on $bgName", contrast(s.onSurfaceVariant, bg) >= AA_TEXT)
+            }
+            assertTrue("$name error on card", contrast(s.error, surfaces.card) >= AA_TEXT)
+        }
+    }
+
+    @Test
+    fun `cards are lighter than the page in every preset`() {
+        for ((name, s, dark) in presetSchemes) {
+            assertTrue(name, luminance(appSurfacesFor(s, dark).card) > luminance(s.background))
+        }
+    }
+
+    @Test
+    fun `dark-only presets fall back to a light preset and ids round-trip`() {
+        for (preset in ThemePreset.entries) {
+            assertSame(preset, ThemePreset.of(preset.id))
+            if (preset.darkOnly) assertSame(ThemePreset.LIGHT_FALLBACK.light, preset.schemeFor(dark = false))
+        }
+        assertNotNull(ThemePreset.LIGHT_FALLBACK.light)
+        assertNull(ThemePreset.of(""))
+        assertNull(ThemePreset.of("removed_in_a_later_version"))
     }
 
     @Test
