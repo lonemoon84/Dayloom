@@ -13,8 +13,9 @@ import org.junit.Test
 
 /**
  * WCAG contrast of the status colours on the card, tile and chip backgrounds, and of the text pairs each theme preset
- * draws: the weather card, line tags, muted text and the greeting on the page.
- * 状态色在卡片、小块与徽标底色上的 WCAG 对比度，以及每套主题预设实际用到的文字配色：天气卡、线路号、浅色文字和页面上的问候语。
+ * draws: the weather card, line tags, muted text and the greeting on the page, also where it crosses the background weave.
+ * 状态色在卡片、小块与徽标底色上的 WCAG 对比度，以及每套主题预设实际用到的文字配色：天气卡、线路号、浅色文字和页面上的问候语，
+ * 包括压在背景织纹线上的情况。
  */
 class StatusColorsContrastTest {
 
@@ -61,6 +62,17 @@ class StatusColorsContrastTest {
                 assertTrue("$name muted text on $bgName", contrast(s.onSurfaceVariant, bg) >= AA_TEXT)
             }
             assertTrue("$name error on card", contrast(s.error, surfaces.card) >= AA_TEXT)
+        }
+    }
+
+    @Test
+    fun `text on the page keeps AA contrast where it crosses a weave thread`() {
+        for ((name, s, dark) in presetSchemes) {
+            val thread = weaveColor(s, dark)
+            val woven = blend(thread, s.background, thread.alpha)
+            for ((textName, text) in listOf("text" to s.onBackground, "greeting" to s.primary, "muted text" to s.onSurfaceVariant)) {
+                assertTrue("$name $textName on a weave thread", contrast(text, woven) >= AA_TEXT)
+            }
         }
     }
 

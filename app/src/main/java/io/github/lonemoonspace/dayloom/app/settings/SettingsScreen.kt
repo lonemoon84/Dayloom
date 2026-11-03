@@ -68,6 +68,7 @@ fun SettingsScreen(
     onMorningBrief: (Boolean) -> Unit,
     onMorningBriefTime: (Int) -> Unit,
     onThemePreset: (String) -> Unit,
+    onWeaveBackground: (Boolean) -> Unit,
     /** The shared places card. / 共用的地点卡片。 */
     sharedData: @Composable () -> Unit = {},
 ) {
@@ -76,7 +77,7 @@ fun SettingsScreen(
         contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 12.dp).plusBars(top = true),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        item(key = "theme") { ThemeCard(state.themePreset, onThemePreset) }
+        item(key = "theme") { ThemeCard(state.themePreset, onThemePreset, state.weaveBackground, onWeaveBackground) }
         item(key = "language") { LanguageCard(state.language, onLanguage) }
         item(key = "timezone") { TimeZoneCard(state.timeZoneOverride, state.effectiveZone, onTimeZone) }
         item(key = "shared") { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { sharedData() } }

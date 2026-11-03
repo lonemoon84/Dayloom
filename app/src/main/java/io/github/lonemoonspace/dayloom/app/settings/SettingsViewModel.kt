@@ -31,6 +31,7 @@ data class SettingsState(
     val timeZoneOverride: String = "",
     val effectiveZone: String = "",
     val themePreset: String = "",
+    val weaveBackground: Boolean = true,
     val modules: List<ModuleToggle> = emptyList(),
     val morningBrief: Boolean = false,
     /** Minutes after midnight. / 午夜起的分钟数。 */
@@ -56,6 +57,7 @@ class SettingsViewModel(
             timeZoneOverride = s.timeZoneOverride,
             effectiveZone = z.id,
             themePreset = s.themePreset,
+            weaveBackground = s.weaveBackground,
             modules = modules.map { ModuleToggle(it, it.id in enabled, sectionsOf(it)) },
             morningBrief = s.morningBrief,
             morningBriefMinute = s.morningBriefMinute,
@@ -64,6 +66,10 @@ class SettingsViewModel(
 
     fun setThemePreset(preset: String) {
         viewModelScope.launch { settings.update { it.copy(themePreset = preset) } }
+    }
+
+    fun setWeaveBackground(on: Boolean) {
+        viewModelScope.launch { settings.update { it.copy(weaveBackground = on) } }
     }
 
     fun setLanguage(choice: LanguageChoice) {

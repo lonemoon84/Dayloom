@@ -28,6 +28,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.Font
@@ -66,6 +67,8 @@ import io.github.lonemoonspace.dayloom.core.ui.LocalBarInsets
 import io.github.lonemoonspace.dayloom.core.ui.LocalHazeState
 import io.github.lonemoonspace.dayloom.core.ui.NavTab
 import io.github.lonemoonspace.dayloom.core.ui.PullRefresh
+import io.github.lonemoonspace.dayloom.core.ui.theme.weaveBackground
+import io.github.lonemoonspace.dayloom.core.ui.theme.weaveColor
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -127,7 +130,7 @@ fun AppRoot(graph: AppGraph, pendingIntent: Intent?) {
                 onFinish = vm::finishOnboarding,
             )
         }
-        true -> MainShell(graph, pendingIntent)
+        true -> MainShell(graph, pendingIntent, weave = settings?.weaveBackground != false)
     }
 }
 
@@ -167,7 +170,7 @@ private fun sharedDataViewModel(graph: AppGraph): SharedDataViewModel = viewMode
  * 导航根：玻璃顶栏、悬浮底栏（首页 + 模块标签页 + 设置）与 NavHost。标签页来自已开启的模块，新模块的标签页无需改这里就会出现。
  */
 @Composable
-private fun MainShell(graph: AppGraph, pendingIntent: Intent?) {
+private fun MainShell(graph: AppGraph, pendingIntent: Intent?, weave: Boolean) {
     val navController = rememberNavController()
     val active by graph.host.active.collectAsStateWithLifecycle()
     val tabModules = active.orEmpty().filter { it.instance.tab != null }
@@ -264,11 +267,19 @@ private fun MainShell(graph: AppGraph, pendingIntent: Intent?) {
                 CompactNavBar(tabs)
             },
         ) { padding ->
+            val scheme = MaterialTheme.colorScheme
+            // Drawn inside the haze source, so the bars blur the weave too. / 画在毛玻璃的取样范围内，顶栏底栏下也是模糊的织纹。
+            val weaveLayer = if (weave) {
+                Modifier.weaveBackground(weaveColor(scheme, dark = scheme.background.luminance() < 0.5f))
+            } else {
+                Modifier
+            }
             Box(
                 Modifier
                     .fillMaxSize()
                     .hazeSource(hazeState)
-                    .background(MaterialTheme.colorScheme.background),
+                    .background(scheme.background)
+                    .then(weaveLayer),
             ) {
                 CompositionLocalProvider(LocalBarInsets provides padding) {
                     NavHost(navController = navController, startDestination = Routes.HOME, modifier = Modifier.fillMaxSize()) {
@@ -299,6 +310,7 @@ private fun MainShell(graph: AppGraph, pendingIntent: Intent?) {
                                 onMorningBrief = vm::setMorningBrief,
                                 onMorningBriefTime = vm::setMorningBriefTime,
                                 onThemePreset = vm::setThemePreset,
+                                onWeaveBackground = vm::setWeaveBackground,
                             ) {
                                 val places by sharedVm.placeList.collectAsStateWithLifecycle()
                                 val editor by sharedVm.editor.collectAsStateWithLifecycle()

@@ -126,4 +126,15 @@ class SettingsViewModelTest {
         assertEquals("nordic_dawn", settings.state.value.themePreset)
         assertEquals("nordic_dawn", vm.state.value.themePreset)
     }
+
+    @Test
+    fun `the woven background is on by default and can be turned off`() = runTest {
+        val vm = vm()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.state.collect {} }
+
+        assertTrue(vm.state.value.weaveBackground)
+        vm.setWeaveBackground(false)
+        assertFalse(settings.state.value.weaveBackground)
+        assertFalse(vm.state.value.weaveBackground)
+    }
 }
