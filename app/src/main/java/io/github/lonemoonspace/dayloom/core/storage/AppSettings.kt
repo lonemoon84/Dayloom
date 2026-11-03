@@ -14,6 +14,8 @@ data class AppSettings(
     val timeZoneOverride: String = "",
     /** A `ThemePreset.id`; empty or unknown = the wallpaper colours. / 一个 `ThemePreset.id`；空或不认识的值 = 跟随壁纸取色。 */
     val themePreset: String = "",
+    /** The faint woven texture behind every page. / 每个页面背后那层淡淡的织纹。 */
+    val weaveBackground: Boolean = true,
     /**
      * Explicit on/off choices per module id; a module missing here uses its own default, so modules added
      * in later versions get their default instead of "off".

@@ -388,6 +388,8 @@
     <string name="theme_sage_forest">森林晨露</string>
     <string name="theme_oled_obsidian">曜石极夜</string>
     <string name="theme_aurora_twilight">深空暮紫</string>
+    <string name="theme_weave">背景织纹</string>
+    <string name="theme_weave_summary">卡片背后一层淡淡的织纹</string>
     <string name="settings_places">地点</string>
     <string name="places_not_set">未设置</string>
     <string name="places_add">添加地点</string>

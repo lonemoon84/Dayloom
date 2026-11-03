@@ -17,6 +17,7 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
@@ -31,6 +32,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.dp
 import io.github.lonemoonspace.dayloom.R
 import io.github.lonemoonspace.dayloom.core.ui.InfoCard
+import io.github.lonemoonspace.dayloom.core.ui.SwitchRow
 import io.github.lonemoonspace.dayloom.core.ui.theme.ThemePreset
 import io.github.lonemoonspace.dayloom.core.ui.theme.appSurfacesFor
 import io.github.lonemoonspace.dayloom.core.ui.theme.wallpaperScheme
@@ -38,12 +40,12 @@ import io.github.lonemoonspace.dayloom.core.ui.theme.wallpaperScheme
 /**
  * The wallpaper colours plus each [ThemePreset], with three dots (page, card, accent) so a scheme can be judged before
  * switching. In light mode the dark-only presets are greyed out and say so; the selection itself is kept, so they come back
- * when the phone turns dark.
+ * when the phone turns dark. The woven-background switch sits underneath.
  * 壁纸取色加各个 [ThemePreset]，每项带三个色点（页面、卡片、主色），切换前就能大致看出效果。浅色模式下只有深色的预设置灰并
- * 注明；已选的值保持不变，手机切到深色时自动生效。
+ * 注明；已选的值保持不变，手机切到深色时自动生效。下面是背景织纹的开关。
  */
 @Composable
-internal fun ThemeCard(selected: String, onSelect: (String) -> Unit) {
+internal fun ThemeCard(selected: String, onSelect: (String) -> Unit, weave: Boolean, onWeave: (Boolean) -> Unit) {
     val dark = isSystemInDarkTheme()
     val context = LocalContext.current
     val current = ThemePreset.of(selected)
@@ -72,6 +74,13 @@ internal fun ThemeCard(selected: String, onSelect: (String) -> Unit) {
                 )
             }
         }
+        HorizontalDivider(Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+        SwitchRow(
+            label = stringResource(R.string.theme_weave),
+            checked = weave,
+            onCheckedChange = onWeave,
+            summary = stringResource(R.string.theme_weave_summary),
+        )
     }
 }
 

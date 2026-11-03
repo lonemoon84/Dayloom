@@ -403,6 +403,8 @@
     <string name="theme_sage_forest">Sage Forest</string>
     <string name="theme_oled_obsidian">OLED Obsidian</string>
     <string name="theme_aurora_twilight">Aurora Twilight</string>
+    <string name="theme_weave">Woven background</string>
+    <string name="theme_weave_summary">A faint woven texture behind the cards</string>
     <string name="settings_places">Places</string>
     <string name="places_not_set">Not set</string>
     <string name="places_add">Add a place</string>

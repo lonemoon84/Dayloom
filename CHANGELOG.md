@@ -19,6 +19,9 @@ looks it up literally.
   card that lines up with the cards below. A long date stays whole; the lunar date gives way.
 - Home top bar: the slogan "All threads, for your day" (Chinese: 千丝万缕，织成一日) in handwriting fonts, Parisienne and
   Long Cang, next to the title.
+- Woven background: a faint plain-weave texture behind every page, echoing the app's name. Light themes draw it a shade
+  lighter than the page, dark themes a faint light line; text written on the page still meets the contrast
+  standard, and cards are untouched. It can be turned off under Settings → Theme.
 
 - 主题：设置里新增「外观与主题」卡片。除了默认的壁纸取色，还有五套精选配色：北欧晨曦、暖阳木棉、森林晨露（各有浅色与深色），
   以及只有深色的曜石极夜（页面纯黑）和深空暮紫。每个选项带三个色点，分别是页面、卡片和主色。浅色模式下只有深色的两套置灰，
@@ -29,6 +32,8 @@ looks it up literally.
 - 日历页头：时钟上方加了问候语（早上好 / 下午好 / 晚上好）；日期和农历放进一张卡片，与下面的卡片对齐。日期较长时完整显示，
   由农历让位。
 - 首页顶栏：标题旁加了标语「千丝万缕，织成一日」（英文 "All threads, for your day"），分别用龙藏体和 Parisienne 手写字体。
+- 背景织纹：每个页面背后加了一层淡淡的平纹织纹，呼应「织日」这个名字。浅色主题的织纹比页面略浅，深色主题用很淡的浅色线，
+  直接写在页面上的文字对比度仍然达标；卡片不受影响。可以在「设置 → 外观与主题」里关掉。
 
 ## 0.2.5
 
