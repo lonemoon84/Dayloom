@@ -86,13 +86,19 @@ internal object Routes {
 }
 
 /**
- * The home slogan's handwriting fonts (Long Cang for Chinese, Parisienne for English). `res/font-zh` holds Long Cang cut
- * down to the Chinese slogan's glyphs (see `scripts/fonts/subset_slogan.py`), so the font follows the app language the same
- * way the string does.
- * 首页标语的手写字体（中文龙藏体，英文 Parisienne）。`res/font-zh` 里是只保留中文标语字形的龙藏体（见
- * `scripts/fonts/subset_slogan.py`），字体与文案一样跟随 App 语言。
+ * The home slogan's handwriting fonts: Long Cang (cut down to the Chinese slogan's glyphs, see
+ * `scripts/fonts/subset_slogan.py`) and Parisienne. They are two resources chosen by the slogan text, not one font with a
+ * `font-zh` variant: Compose loads fonts through the application context and caches them by resource id for the whole
+ * process, so after a language switch the English slogan was still given the Chinese subset and fell back to the system font.
+ * 首页标语的手写字体：龙藏体（只保留中文标语的字形，见 `scripts/fonts/subset_slogan.py`）和 Parisienne。拆成两个资源、按标语
+ * 文字来选，而不是一个字体加 `font-zh` 变体：Compose 用 Application 的 Context 加载字体，并按资源 id 在整个进程里缓存，切换
+ * 语言后英文标语仍拿到中文子集，只能退回系统字体。
  */
-private val SloganFont = FontFamily(Font(R.font.slogan))
+private val ChineseSloganFont = FontFamily(Font(R.font.slogan_long_cang))
+private val LatinSloganFont = FontFamily(Font(R.font.slogan_parisienne))
+
+private fun sloganFont(slogan: String): FontFamily =
+    if (slogan.any { Character.UnicodeScript.of(it.code) == Character.UnicodeScript.HAN }) ChineseSloganFont else LatinSloganFont
 
 /**
  * Shows the onboarding until it has been finished once, then the app. Nothing is drawn before the settings are read, so a
@@ -209,7 +215,7 @@ private fun MainShell(graph: AppGraph, pendingIntent: Intent?) {
                         title = stringResource(R.string.app_name),
                         subtitle = stringResource(R.string.app_slogan),
                         subtitleStyle = MaterialTheme.typography.titleMedium.copy(
-                            fontFamily = SloganFont,
+                            fontFamily = sloganFont(stringResource(R.string.app_slogan)),
                             fontWeight = FontWeight.Normal,
                             fontSize = 18.sp,
                         ),
