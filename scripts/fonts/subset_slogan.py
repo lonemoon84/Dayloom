@@ -1,9 +1,11 @@
 """
-Builds the home-bar slogan fonts: `res/font-zh/slogan.ttf` (Chinese, Long Cang) cut down to the glyphs of `app_slogan`, so
-the APK grows by a few KB instead of 5 MB, and `res/font/slogan.ttf` (English, Parisienne) copied whole.
+Builds the home-bar slogan fonts: `res/font/slogan_long_cang.ttf` (Chinese) cut down to the glyphs of `app_slogan`, so the
+APK grows by a few KB instead of 5 MB, and `res/font/slogan_parisienne.ttf` (English) copied whole. The app picks one by
+the slogan text (see `sloganFont` in `AppRoot.kt`), not by a `font-zh` folder, which Compose does not re-read on a language switch.
 Run from the repository root after changing the slogan: `python3 scripts/fonts/subset_slogan.py` (needs `fonttools`).
-生成首页标题栏标语用的字体：`res/font-zh/slogan.ttf`（中文，龙藏体）只保留 `app_slogan` 用到的字形，APK 只增加几 KB 而不是
-5 MB；`res/font/slogan.ttf`（英文，Parisienne）整份复制。
+生成首页标题栏标语用的字体：`res/font/slogan_long_cang.ttf`（中文）只保留 `app_slogan` 用到的字形，APK 只增加几 KB 而不是
+5 MB；`res/font/slogan_parisienne.ttf`（英文）整份复制。App 按标语文字选字体（见 `AppRoot.kt` 的 `sloganFont`），不用
+`font-zh` 目录，因为切换语言后 Compose 不会重新读取。
 改了标语后在仓库根目录运行：`python3 scripts/fonts/subset_slogan.py`（需要 `fonttools`）。
 
 Both fonts are under the SIL Open Font License 1.1; the licence text is in `res/raw/third_party_licenses.txt`. Parisienne
@@ -58,5 +60,5 @@ def subsetted(source, text):
 
 
 # The ellipsis is drawn when the slogan is cut. / 标语被截断时要画省略号。
-save(subsetted("longcang/LongCang-Regular.ttf", slogan("values-zh/strings.xml") + "…"), "font-zh/slogan.ttf")
-save(download("parisienne/Parisienne-Regular.ttf"), "font/slogan.ttf")
+save(subsetted("longcang/LongCang-Regular.ttf", slogan("values-zh/strings.xml") + "…"), "font/slogan_long_cang.ttf")
+save(download("parisienne/Parisienne-Regular.ttf"), "font/slogan_parisienne.ttf")

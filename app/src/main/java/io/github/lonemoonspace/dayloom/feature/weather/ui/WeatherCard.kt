@@ -345,27 +345,19 @@ private fun DayChart(outlook: DayOutlook) {
             )
         }
 
-        // Each segment's control points sit halfway across at the two end heights, so the curve is smooth but never
-        // overshoots past an hour's real temperature.
-        // 每段的控制点放在水平中点、高度取两端的值，曲线平滑，但不会冲过任何一个小时的实际温度。
+        // Smooth through every hour without overshooting it; see MonotoneCurve. / 平滑穿过每个整点且不冲过实际温度，见 MonotoneCurve。
+        val xs = FloatArray(hours.size) { x(hours[it].time) }
+        val ys = FloatArray(hours.size) { y(temps[it]) }
         val line = Path()
         val area = Path()
-        hours.forEachIndexed { i, h ->
-            val currX = x(h.time)
-            val currY = y(h.temperature!!)
-            if (i == 0) {
-                line.moveTo(currX, currY)
-                area.moveTo(currX, tempBottom)
-                area.lineTo(currX, currY)
-            } else {
-                val prevX = x(hours[i - 1].time)
-                val prevY = y(hours[i - 1].temperature!!)
-                val midX = (prevX + currX) / 2f
-                line.cubicTo(midX, prevY, midX, currY, currX, currY)
-                area.cubicTo(midX, prevY, midX, currY, currX, currY)
-            }
+        line.moveTo(xs[0], ys[0])
+        area.moveTo(xs[0], tempBottom)
+        area.lineTo(xs[0], ys[0])
+        MonotoneCurve.segments(xs, ys).forEach { s ->
+            line.cubicTo(s.c1x, s.c1y, s.c2x, s.c2y, s.x, s.y)
+            area.cubicTo(s.c1x, s.c1y, s.c2x, s.c2y, s.x, s.y)
         }
-        area.lineTo(x(hours.last().time), tempBottom)
+        area.lineTo(xs.last(), tempBottom)
         area.close()
 
         // Fades towards the bottom, so the fill reads as the curve's shadow rather than a solid block. / 向下渐淡，填充看起来像曲线的影子，而不是一整块色块。

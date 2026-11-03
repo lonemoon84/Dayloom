@@ -14,7 +14,7 @@ looks it up literally.
   for contrast.
 - Look: cards get a hairline border and a soft shadow, status pills and line tags a thin border of their own colour, and
   the floating tab bar is a little taller with a faint shadow. The weather card draws the temperature as a smooth curve
-  with a fading fill.
+  with a fading fill; it passes through every hour without a step at each one and never overshoots the real high or low.
 - Calendar header: a greeting (Good morning / afternoon / evening) above the clock, and the date with the lunar date in a
   card that lines up with the cards below. A long date stays whole; the lunar date gives way.
 - Home top bar: the slogan "All threads, for your day" (Chinese: 千丝万缕，织成一日) in handwriting fonts, Parisienne and
@@ -25,7 +25,7 @@ looks it up literally.
   App 先用北欧晨曦，手机切到深色时再生效。配色来自 lonemoon84 的贡献（PR #32）；为了让天气卡上的文字看得清，调深了几处主色，
   每套配色都经过对比度检查。
 - 外观：卡片加了细边和柔和的阴影，状态胶囊和线路号加了同色细边，悬浮底栏稍微加高并带一层淡淡的阴影。天气卡的温度改成平滑
-  曲线，下面是渐淡的填充。
+  曲线，下面是渐淡的填充；曲线穿过每个整点，不会在整点处出现台阶，也不会冲过实际的最高或最低温。
 - 日历页头：时钟上方加了问候语（早上好 / 下午好 / 晚上好）；日期和农历放进一张卡片，与下面的卡片对齐。日期较长时完整显示，
   由农历让位。
 - 首页顶栏：标题旁加了标语「千丝万缕，织成一日」（英文 "All threads, for your day"），分别用龙藏体和 Parisienne 手写字体。
