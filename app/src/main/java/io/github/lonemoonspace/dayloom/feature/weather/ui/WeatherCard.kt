@@ -129,7 +129,7 @@ internal fun WeatherCard(
             outlook?.let { AdvicePills(it, amountsInChart = chart != null) }
             if (error != null) {
                 Spacer(Modifier.height(6.dp))
-                HeroPill(error.userMessage().asString(), icon = R.drawable.ic_status_warn, strong = true)
+                HeroPill(error.userMessage().asString(), strong = true)
             }
             if (strip.isNotEmpty()) {
                 Divider()

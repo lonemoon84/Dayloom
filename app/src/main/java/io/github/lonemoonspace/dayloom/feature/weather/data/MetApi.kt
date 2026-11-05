@@ -26,6 +26,7 @@ import okhttp3.Request
 class MetApi(
     private val http: OkHttpClient,
     private val baseUrl: HttpUrl = "https://api.met.no/weatherapi/locationforecast/2.0/complete".toHttpUrl(),
+    private val fallbackUrl: HttpUrl = "https://api.met.no/weatherapi/locationforecast/2.0/compact".toHttpUrl(),
 ) {
     sealed interface Result {
         data class Fresh(val forecast: Forecast) : Result
@@ -34,7 +35,28 @@ class MetApi(
         data object NotModified : Result
     }
 
-    fun fetch(lat: Double, lon: Double, ifModifiedSince: String?): Result {
+    /**
+     * MET has served `complete` bodies cut off mid-JSON (a matching Content-Length, so only the decoder notices) while
+     * `compact` stayed whole. An unreadable `complete` therefore falls back to `compact`: the card loses feels-like, gusts,
+     * UV and rain probability for that hour instead of showing an old forecast. HTTP errors do not fall back, since `compact`
+     * sits behind the same server and limits.
+     * MET 出现过 `complete` 返回的内容在 JSON 中途被截断（Content-Length 与之相符，只有解析时才发现），而 `compact` 完好。
+     * 所以 `complete` 读不了时改用 `compact`：这一小时卡片少了体感、阵风、紫外线与降水概率，但不会停在旧预报上。
+     * HTTP 错误不切换，`compact` 与它在同一台服务器、同一套限流之后。
+     */
+    fun fetch(lat: Double, lon: Double, ifModifiedSince: String?): Result = try {
+        fetchFrom(baseUrl, lat, lon, ifModifiedSince)
+    } catch (e: AppError.BadData) {
+        try {
+            fetchFrom(fallbackUrl, lat, lon, ifModifiedSince)
+        } catch (fallback: AppError) {
+            // Report the original failure: it names the endpoint the app normally reads. / 报告最初的失败：它对应平常读取的接口。
+            e.addSuppressed(fallback)
+            throw e
+        }
+    }
+
+    private fun fetchFrom(baseUrl: HttpUrl, lat: Double, lon: Double, ifModifiedSince: String?): Result {
         val url = baseUrl.newBuilder()
             .addQueryParameter("lat", PlacesPolicy.formatCoordinate(lat))
             .addQueryParameter("lon", PlacesPolicy.formatCoordinate(lon))

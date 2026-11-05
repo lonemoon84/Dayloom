@@ -34,7 +34,11 @@ class MetApiTest {
         server.shutdown()
     }
 
-    private fun api() = MetApi(OkHttpClient(), baseUrl = server.url("/weatherapi/locationforecast/2.0/complete"))
+    private fun api() = MetApi(
+        OkHttpClient(),
+        baseUrl = server.url("/weatherapi/locationforecast/2.0/complete"),
+        fallbackUrl = server.url("/weatherapi/locationforecast/2.0/compact"),
+    )
 
     private val body = """
         {"type":"Feature","properties":{"meta":{"updated_at":"2026-09-22T05:30:00Z","units":{}},"timeseries":[
@@ -97,11 +101,36 @@ class MetApiTest {
         server.enqueue(MockResponse().setResponseCode(429))
         assertEquals(429, assertThrows(AppError.Http::class.java) { api().fetch(1.0, 1.0, null) }.code)
 
-        server.enqueue(MockResponse().setBody("not json"))
+        // An unreadable body is retried once on compact, so each case needs two bad responses.
+        // 读不了的内容会改用 compact 再试一次，所以每种情况要排两份坏响应。
+        repeat(2) { server.enqueue(MockResponse().setBody("not json")) }
         assertThrows(AppError.BadData::class.java) { api().fetch(1.0, 1.0, null) }
 
-        server.enqueue(MockResponse().setBody("""{"properties":{"timeseries":[]}}"""))
+        repeat(2) { server.enqueue(MockResponse().setBody("""{"properties":{"timeseries":[]}}""")) }
         assertThrows(AppError.BadData::class.java) { api().fetch(1.0, 1.0, null) }
+    }
+
+    @Test
+    fun `a truncated complete body falls back to compact`() {
+        server.enqueue(MockResponse().setBody(body.substring(0, body.length / 2)))
+        server.enqueue(MockResponse().setBody(body).setHeader("Last-Modified", "Tue, 22 Sep 2026 05:31:00 GMT"))
+
+        val forecast = (api().fetch(59.9, 10.7, ifModifiedSince = "Tue, 22 Sep 2026 04:31:00 GMT") as MetApi.Result.Fresh).forecast
+
+        assertEquals(7.5, forecast.points.first().temperature!!, 0.0)
+        assertEquals("Tue, 22 Sep 2026 05:31:00 GMT", forecast.lastModified)
+        assertTrue(server.takeRequest().path!!.startsWith("/weatherapi/locationforecast/2.0/complete?"))
+        val fallback = server.takeRequest()
+        assertTrue(fallback.path!!.startsWith("/weatherapi/locationforecast/2.0/compact?lat=59.9000&lon=10.7000"))
+        assertEquals("Tue, 22 Sep 2026 04:31:00 GMT", fallback.getHeader("If-Modified-Since"))
+    }
+
+    @Test
+    fun `http errors on complete do not fall back`() {
+        server.enqueue(MockResponse().setResponseCode(500))
+
+        assertThrows(AppError.Http::class.java) { api().fetch(1.0, 1.0, null) }
+        assertEquals(1, server.requestCount)
     }
 
     @Test
