@@ -22,7 +22,8 @@ The app only contacts the services of the modules you turn on, and sends each on
 | Places | Google Places API with your key, otherwise Entur and OpenStreetMap (Nominatim) | What you type into place search |
 | Traffic | Google Routes API with your key | The coordinates of the two places you chose |
 | Football | football-data.org with your key | The competition and team you follow |
-| News | Your own Miniflux server | Your token; read and starred changes |
+| News (feeds) | The websites of the feeds you follow | A plain request for each feed; nothing about you or what you read |
+| News (Miniflux) | Your own Miniflux server | Your token; read and starred changes |
 | News, AI summaries | The endpoint you configure | An article's title and text, only when you tap Summarize |
 
 Every request identifies the app as `Dayloom/<version> (+https://github.com/lonemoonspace/dayloom)`, as MET Norway asks.

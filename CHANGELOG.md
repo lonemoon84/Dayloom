@@ -28,6 +28,15 @@ looks it up literally.
   reads MET's shorter forecast instead of keeping the old one and showing "could not read the data". Until the next
   refresh the card shows no gusts, UV or rain chance, and feels-like shows the air temperature. The error line on the weather card
   no longer has a "!" in front.
+- News without a server: the news tab can now read RSS, Atom and RDF feeds straight from the phone, so it works for
+  anyone, not only people with a Miniflux server. Settings → News has a new "Article source" switch (Feeds or Miniflux
+  server; anyone who already set up Miniflux stays on it). Feeds can be added by address (a website address works too
+  when the page links to its feed), picked from suggested feeds in Chinese, Norwegian and English (shown once, nothing
+  ticked by default) or imported from an OPML file. Read and starred stay on the phone, unchanged feeds cost only a short
+  "not modified" reply, and a feed that can't be read says why under its name and in one line on the news tab. Only the
+  title and excerpt a feed provides are shown; "Open original" is now the main button on an article.
+- News: the AI summary card only appears once the summary endpoint, model and key are set (a summary made earlier still
+  shows). Opening the original on a phone with no app for the link no longer crashes.
 
 - 主题：设置里新增「外观与主题」卡片。除了默认的壁纸取色，还有五套精选配色：北欧晨曦、暖阳木棉、森林晨露（各有浅色与深色），
   以及只有深色的曜石极夜（页面纯黑）和深空暮紫。每个选项带三个色点，分别是页面、卡片和主色。浅色模式下只有深色的两套置灰，
@@ -44,6 +53,13 @@ looks it up literally.
 - 天气：MET Norway 发来的预报在中途被截断时（2026 年 11 月 5 日挪威境内的地点就出现过），App 改读 MET 的精简版预报，
   不再停在旧预报上并提示「返回的数据无法读取」。到下次刷新前，卡片上没有阵风、紫外线与降水概率，体感温度显示为气温。
   天气卡上的错误提示前面不再有「!」。
+- 新闻不再需要服务器：新闻页现在可以在手机上直接读取 RSS、Atom 和 RDF 订阅源，没有 Miniflux 服务器的人也能用。「设置 →
+  新闻」新增「文章来源」开关（直接订阅 / Miniflux 服务器；已经设置了 Miniflux 的人保持不变）。订阅源可以输入地址添加（网页
+  指向自己的订阅源时，填网站地址也行），可以从中文、挪威语、英文的推荐源里勾选（只自动弹出一次，默认不勾选），也可以导入
+  OPML 文件。已读和收藏只存在本机；没有更新的订阅源只花一个简短的「未修改」应答；读不到的源会在名称下面说明原因，新闻页顶部
+  也有一行提示。只显示订阅源提供的标题和摘要，文章页的主按钮改成「打开原文」。
+- 新闻：AI 摘要卡片要在摘要接口、模型和 Key 都填好后才出现（以前生成的摘要照样显示）。手机上没有能打开链接的 App 时，
+  点「打开原文」不再闪退。
 
 ## 0.2.5
 

@@ -549,7 +549,7 @@
     <string name="football_comp_wc">World Cup</string>
 
     <string name="news_title">News</string>
-    <string name="news_summary">Articles from your own Miniflux server, synced both ways, with optional AI summaries</string>
+    <string name="news_summary">Articles from news feeds you pick or your own Miniflux server, with optional AI summaries</string>
     <string name="news_setup_server">Miniflux server address</string>
     <string name="news_setup_token">Miniflux API token</string>
     <string name="news_setup_llm">AI summary endpoint, model and key in Settings → News</string>
@@ -588,6 +588,56 @@
     <string name="news_summary_title">AI summary</string>
     <string name="news_summarize">Summarize</string>
     <string name="news_summarizing">Summarizing…</string>
+    <string name="news_source_title">Article source</string>
+    <string name="news_source_rss">Feeds</string>
+    <string name="news_source_miniflux">Miniflux server</string>
+    <string name="news_source_rss_note">The phone reads the feeds itself; read and starred stay on this phone.</string>
+    <string name="news_feed_add">Add URL</string>
+    <string name="news_feed_starter">Suggestions</string>
+    <string name="news_feed_import">Import OPML</string>
+    <string name="news_feed_note">Only the titles and excerpts a feed provides are shown; open the original to read the whole article.</string>
+    <string name="news_feed_remove">Remove</string>
+    <string name="news_feed_menu">Options for %1$s</string>
+    <string name="news_feed_updated">updated %1$s</string>
+    <string name="news_feed_never">not read yet</string>
+    <string name="news_feed_unreadable">Can\'t read: %1$s</string>
+    <string name="news_feed_error_network">no connection</string>
+    <string name="news_feed_error_http">server returned %1$d</string>
+    <string name="news_feed_error_not_feed">not a feed</string>
+    <string name="news_feed_add_title">Add a feed</string>
+    <string name="news_feed_url">Feed or website address</string>
+    <string name="news_feed_url_invalid">This address can\'t be used, e.g. https://example.org/rss</string>
+    <string name="news_feed_url_http">Only https:// addresses: Android blocks unencrypted connections.</string>
+    <string name="news_feed_checking">Checking…</string>
+    <string name="news_feed_add_confirm">Add</string>
+    <string name="news_feed_exists">This feed is already in the list.</string>
+    <string name="news_feed_full">The list is full (limit %1$d).</string>
+    <string name="news_feed_not_found">No feed found at this address.</string>
+    <string name="news_opml_none">No new feeds in this file.</string>
+    <string name="news_starter_title">Suggested feeds</string>
+    <string name="news_starter_note">Tick the ones you want; you can remove them later in Settings.</string>
+    <string name="news_starter_chinese">中文</string>
+    <string name="news_starter_norwegian">Norsk</string>
+    <string name="news_starter_english">English</string>
+    <string name="news_tab_setup_feeds">Add feeds under Settings → News.</string>
+    <string name="news_setup_feeds">News feeds</string>
+    <string name="news_excerpt_only">The feed only provides an excerpt.</string>
+    <plurals name="news_feeds_count">
+        <item quantity="one">%1$d feed</item>
+        <item quantity="other">%1$d feeds</item>
+    </plurals>
+    <plurals name="news_feeds_failing">
+        <item quantity="one">%1$d feed couldn\'t be updated: %2$s</item>
+        <item quantity="other">%1$d feeds couldn\'t be updated: %2$s</item>
+    </plurals>
+    <plurals name="news_opml_imported">
+        <item quantity="one">Added %1$d feed</item>
+        <item quantity="other">Added %1$d feeds</item>
+    </plurals>
+    <plurals name="news_starter_add">
+        <item quantity="one">Add %1$d</item>
+        <item quantity="other">Add %1$d</item>
+    </plurals>
     <plurals name="news_unread_count">
         <item quantity="one">%1$d unread</item>
         <item quantity="other">%1$d unread</item>

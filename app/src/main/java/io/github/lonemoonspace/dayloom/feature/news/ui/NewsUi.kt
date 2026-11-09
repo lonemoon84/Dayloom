@@ -25,6 +25,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
@@ -98,7 +99,7 @@ internal interface NewsActions {
  * The home card: unread count and the three newest unread headlines. / 首页卡片：未读数与最新的三条未读标题。
  */
 @Composable
-internal fun NewsCard(summary: SyncSummary?, configured: Boolean, error: AppError?, stale: Boolean, pushRejected: Boolean) {
+internal fun NewsCard(summary: SyncSummary?, configured: Boolean, feeds: Boolean, error: AppError?, stale: Boolean, pushRejected: Boolean) {
     val now = rememberMinuteTick()
     InfoCard(
         title = stringResource(R.string.news_title),
@@ -107,7 +108,7 @@ internal fun NewsCard(summary: SyncSummary?, configured: Boolean, error: AppErro
         stale = stale,
     ) {
         when {
-            !configured -> Hint(stringResource(R.string.news_tab_setup))
+            !configured -> Hint(stringResource(setupHint(feeds)))
             summary == null -> if (error == null) SkeletonLines()
             summary.latest.isEmpty() -> Hint(stringResource(R.string.news_all_read))
             else -> summary.latest.forEach { HeadlineRow(it, now) }
@@ -116,6 +117,9 @@ internal fun NewsCard(summary: SyncSummary?, configured: Boolean, error: AppErro
         if (pushRejected) PushRejectedLine()
     }
 }
+
+/** Where to go to set the news up, for the source in use. / 按正在使用的来源，告诉用户去哪里设置。 */
+private fun setupHint(feeds: Boolean) = if (feeds) R.string.news_tab_setup_feeds else R.string.news_tab_setup
 
 @Composable
 private fun HeadlineRow(headline: Headline, now: ZonedDateTime) {
@@ -134,6 +138,10 @@ private fun HeadlineRow(headline: Headline, now: ZonedDateTime) {
 @Composable
 internal fun NewsTab(
     configured: Boolean,
+    /** Articles come from feeds read here: no full text, nothing pushed. / 文章来自本机读取的订阅源：没有全文，也不推送任何东西。 */
+    feeds: Boolean,
+    failingFeeds: List<String>,
+    canSummarize: Boolean,
     filter: ArticleFilter,
     onFilter: (ArticleFilter) -> Unit,
     query: String,
@@ -149,7 +157,7 @@ internal fun NewsTab(
     val now = rememberMinuteTick()
     if (open != null) {
         BackHandler(onBack = onClose)
-        ArticleDetail(open, now, onClose, actions)
+        ArticleDetail(open, now, feeds, canSummarize, onClose, actions)
         return
     }
     LazyColumn(
@@ -158,7 +166,7 @@ internal fun NewsTab(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         if (!configured) {
-            item { InfoCard(title = stringResource(R.string.news_title), icon = R.drawable.ic_news) { Hint(stringResource(R.string.news_tab_setup)) } }
+            item { InfoCard(title = stringResource(R.string.news_title), icon = R.drawable.ic_news) { Hint(stringResource(setupHint(feeds))) } }
             return@LazyColumn
         }
         item(key = "filters") {
@@ -173,6 +181,7 @@ internal fun NewsTab(
         item(key = "search") { SearchField(query, onQuery) }
         if (error != null) item(key = "error") { ErrorLine(error) }
         if (pushRejected) item(key = "push") { PushRejectedLine() }
+        if (failingFeeds.isNotEmpty()) item(key = "failing") { FailingFeedsLine(failingFeeds) }
         when {
             articles == null -> item { SkeletonLines(lines = 4) }
             articles.isEmpty() -> item {
@@ -187,7 +196,9 @@ internal fun NewsTab(
                 )
             }
             else -> items(articles, key = { it.article.id }) { item ->
-                ArticleCard(item, now, onClick = { actions.open(item.article) }) { actions.setStarred(item.article.id, !item.article.starred) }
+                ArticleCard(item, now, showFullText = !feeds, onClick = { actions.open(item.article) }) {
+                    actions.setStarred(item.article.id, !item.article.starred)
+                }
             }
         }
     }
@@ -256,7 +267,7 @@ private fun SearchField(query: String, onQuery: (String) -> Unit) {
  * 整体变淡，小字的对比度才够。
  */
 @Composable
-private fun ArticleCard(item: ArticleItem, now: ZonedDateTime, onClick: () -> Unit, onToggleStar: () -> Unit) {
+private fun ArticleCard(item: ArticleItem, now: ZonedDateTime, showFullText: Boolean, onClick: () -> Unit, onToggleStar: () -> Unit) {
     val article = item.article
     val read = article.read
     Box(
@@ -305,7 +316,7 @@ private fun ArticleCard(item: ArticleItem, now: ZonedDateTime, onClick: () -> Un
                 )
                 Spacer(Modifier.width(10.dp))
                 Text(moment(article.publishedAt, now), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
-                if (item.fullText) {
+                if (showFullText && item.fullText) {
                     Spacer(Modifier.width(10.dp))
                     Text(stringResource(R.string.news_full_text), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.statusColors.amber, maxLines = 1)
                 }
@@ -332,7 +343,7 @@ private fun moment(millis: Long, now: ZonedDateTime): String {
 }
 
 @Composable
-private fun ArticleDetail(article: StoredArticle, now: ZonedDateTime, onClose: () -> Unit, actions: NewsActions) {
+private fun ArticleDetail(article: StoredArticle, now: ZonedDateTime, feeds: Boolean, canSummarize: Boolean, onClose: () -> Unit, actions: NewsActions) {
     val uri = LocalUriHandler.current
     val language = currentLocale().language
     val scope = rememberCoroutineScope()
@@ -360,8 +371,18 @@ private fun ArticleDetail(article: StoredArticle, now: ZonedDateTime, onClose: (
                     article.readingMinutes.takeIf { it > 0 }?.let { pluralStringResource(R.plurals.news_reading_minutes, it, it) },
                 ).joinToString(" · "),
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                if (article.url.isNotBlank()) TextButton(onClick = { uri.openUri(article.url) }) { Text(stringResource(R.string.news_open_original)) }
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (article.url.isNotBlank()) {
+                    Button(onClick = {
+                        // Compose rethrows "no app can open this" as IllegalArgumentException; then there is nothing to open.
+                        // 没有 App 能打开链接时，Compose 会抛出 IllegalArgumentException；此时什么也打不开，忽略即可。
+                        try {
+                            uri.openUri(article.url)
+                        } catch (_: IllegalArgumentException) {
+                            // Nothing to open with. / 没有可以打开的 App。
+                        }
+                    }) { Text(stringResource(R.string.news_open_original)) }
+                }
                 TextButton(onClick = { actions.setStarred(article.id, !article.starred) }) {
                     Text(stringResource(if (article.starred) R.string.news_unstar else R.string.news_star))
                 }
@@ -370,7 +391,10 @@ private fun ArticleDetail(article: StoredArticle, now: ZonedDateTime, onClose: (
                 }
             }
         }
-        item {
+        if (feeds && NewsSyncPolicy.isStub(article.contentHtml)) item(key = "excerpt") { Hint(stringResource(R.string.news_excerpt_only)) }
+        // Without a summarizer the card would only offer an error; a summary made earlier is still shown.
+        // 没设置摘要服务时这张卡只会报错；以前生成的摘要照样显示。
+        if (canSummarize || article.summary.isNotEmpty()) item {
             InfoCard(title = stringResource(R.string.news_summary_title)) {
                 when {
                     article.summary.isNotEmpty() && article.summaryLanguage == language -> SelectionContainer {
@@ -384,7 +408,7 @@ private fun ArticleDetail(article: StoredArticle, now: ZonedDateTime, onClose: (
                     else -> {
                         // A summary in another language is still shown until a new one is asked for. / 另一种语言的摘要在重新生成前照样显示。
                         if (article.summary.isNotEmpty()) Text(article.summary, style = MaterialTheme.typography.bodyMedium)
-                        FilledTonalButton(onClick = {
+                        if (canSummarize) FilledTonalButton(onClick = {
                             summarizing = true
                             summaryError = null
                             scope.launch {
@@ -410,7 +434,7 @@ private fun ArticleDetail(article: StoredArticle, now: ZonedDateTime, onClose: (
 
 /** "5 min", "3 h", "2 d" ago. / 「5 分钟前」「3 小时前」「2 天前」。 */
 @Composable
-private fun ago(millis: Long, now: ZonedDateTime): String {
+internal fun ago(millis: Long, now: ZonedDateTime): String {
     val age = Duration.between(Instant.ofEpochMilli(millis), now.toInstant())
     return when {
         age.toMinutes() < 60 -> pluralStringResource(R.plurals.news_ago_minutes, age.toMinutes().toInt().coerceAtLeast(1), age.toMinutes().toInt().coerceAtLeast(1))
@@ -431,6 +455,16 @@ internal fun Hint(text: String) {
 @Composable
 internal fun PushRejectedLine() {
     Text(stringResource(R.string.news_push_rejected), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.statusColors.red)
+}
+
+/** Feeds the last sync could not read; the rest of the list is current. / 上一次同步读不到的订阅源；列表其余部分是最新的。 */
+@Composable
+internal fun FailingFeedsLine(titles: List<String>) {
+    Text(
+        pluralStringResource(R.plurals.news_feeds_failing, titles.size, titles.size, titles.joinToString(", ")),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.statusColors.red,
+    )
 }
 
 @Composable

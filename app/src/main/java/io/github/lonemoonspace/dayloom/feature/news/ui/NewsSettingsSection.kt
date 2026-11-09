@@ -36,25 +36,36 @@ import io.github.lonemoonspace.dayloom.core.ui.SecretInput
 import io.github.lonemoonspace.dayloom.core.ui.theme.statusColors
 import io.github.lonemoonspace.dayloom.core.ui.userMessage
 import io.github.lonemoonspace.dayloom.feature.news.NewsSettings
+import io.github.lonemoonspace.dayloom.feature.news.domain.FeedState
+import io.github.lonemoonspace.dayloom.feature.news.domain.NewsSourceKind
 import io.github.lonemoonspace.dayloom.feature.news.domain.NewsSyncPolicy
 import kotlinx.coroutines.launch
 
 /**
- * Miniflux server and token, then the optional summarizer: endpoint, model and key. Addresses must be https, because the
- * token would otherwise travel in clear text.
- * Miniflux 服务器与令牌，然后是可选的摘要设置：接口地址、模型与 Key。地址必须是 https，否则令牌会明文传输。
+ * The source first (feeds or a Miniflux server) with its own setup, then the optional summarizer: endpoint, model and key.
+ * Addresses must be https, because a token would otherwise travel in clear text.
+ * 先选来源（订阅源或 Miniflux 服务器）并完成对应设置，然后是可选的摘要设置：接口地址、模型与 Key。地址必须是 https，否则令牌会明文传输。
  */
 @Composable
 internal fun NewsSettingsSection(
     saved: NewsSettings,
     token: SecretState,
     llmKey: SecretState,
+    feedStates: List<FeedState>,
     connect: suspend (url: String, token: String?) -> ConnectResult,
+    addFeed: suspend (String) -> AddFeedResult,
     saveLlmKey: (String) -> Unit,
     update: ((NewsSettings) -> NewsSettings) -> Unit,
 ) {
-    Hint(stringResource(R.string.news_server_note))
-    ServerForm(saved.serverUrl, token, connect)
+    val kind = saved.kind()
+    SourcePicker(kind) { picked -> update { it.copy(source = picked) } }
+    when (kind) {
+        NewsSourceKind.RSS -> FeedsForm(saved, feedStates, addFeed, update)
+        NewsSourceKind.MINIFLUX -> {
+            Hint(stringResource(R.string.news_server_note))
+            ServerForm(saved.serverUrl, token, connect)
+        }
+    }
 
     Text(stringResource(R.string.news_llm_section), style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 8.dp))
     Hint(stringResource(R.string.news_llm_note))

@@ -22,18 +22,28 @@ import io.github.lonemoonspace.dayloom.core.refresh.SourceInput
 import io.github.lonemoonspace.dayloom.core.refresh.SourceResult
 import io.github.lonemoonspace.dayloom.core.refresh.Trigger
 import io.github.lonemoonspace.dayloom.core.secret.SecretState
+import io.github.lonemoonspace.dayloom.feature.news.data.FeedApi
+import io.github.lonemoonspace.dayloom.feature.news.data.FeedSync
 import io.github.lonemoonspace.dayloom.feature.news.data.LlmApi
 import io.github.lonemoonspace.dayloom.feature.news.data.MinifluxApi
 import io.github.lonemoonspace.dayloom.feature.news.data.NewsDatabase
 import io.github.lonemoonspace.dayloom.feature.news.data.NewsSync
+import io.github.lonemoonspace.dayloom.feature.news.data.NewsSourceSettings
 import io.github.lonemoonspace.dayloom.feature.news.data.NewsSyncSource
 import io.github.lonemoonspace.dayloom.feature.news.data.RoomArticleStore
 import io.github.lonemoonspace.dayloom.feature.news.domain.ArticleFilter
 import io.github.lonemoonspace.dayloom.feature.news.domain.ArticleOwner
 import io.github.lonemoonspace.dayloom.feature.news.domain.ArticleItem
+import io.github.lonemoonspace.dayloom.feature.news.domain.Feed
+import io.github.lonemoonspace.dayloom.feature.news.domain.FeedParser
+import io.github.lonemoonspace.dayloom.feature.news.domain.FeedPolicy
+import io.github.lonemoonspace.dayloom.feature.news.domain.FetchResult
+import io.github.lonemoonspace.dayloom.feature.news.domain.NewsSourceKind
+import io.github.lonemoonspace.dayloom.feature.news.domain.ParsedFeed
 import io.github.lonemoonspace.dayloom.feature.news.domain.NewsSyncPolicy
 import io.github.lonemoonspace.dayloom.feature.news.domain.StoredArticle
 import io.github.lonemoonspace.dayloom.feature.news.domain.SyncSummary
+import io.github.lonemoonspace.dayloom.feature.news.ui.AddFeedResult
 import io.github.lonemoonspace.dayloom.feature.news.ui.ConnectResult
 import io.github.lonemoonspace.dayloom.feature.news.ui.NewsActions
 import io.github.lonemoonspace.dayloom.feature.news.ui.NewsCard
@@ -51,14 +61,16 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.Serializable
 
 /**
- * News from the user's own Miniflux server: its own tab with the articles, read and starred state synced both ways, and AI
- * summaries from any OpenAI-compatible endpoint in the app language. Off by default because it needs a server.
- * 来自用户自己的 Miniflux 服务器的新闻：独立标签页显示文章，已读与收藏状态双向同步，并可用任意兼容 OpenAI 的接口按 App 语言生成
- * AI 摘要。需要服务器，所以默认关闭。
+ * News in its own tab, from feeds the phone reads directly (the default, no server or account needed) or from the user's
+ * own Miniflux server with read and starred state synced both ways; AI summaries from any OpenAI-compatible endpoint in the
+ * app language. Off by default: there is nothing to show until feeds are picked.
+ * 独立标签页里的新闻，来自手机直接读取的订阅源（默认，不需要服务器或账号），或用户自己的 Miniflux 服务器（已读与收藏双向同步）；
+ * 可用任意兼容 OpenAI 的接口按 App 语言生成 AI 摘要。默认关闭：选好订阅源之前没有内容可显示。
  */
 object NewsModule : FeatureModule {
     override val id = "news"
@@ -81,10 +93,24 @@ data class NewsSettings(
     val llmModel: String = "",
     /** The server the stored articles came from (design §11.7); written by the sync. / 本地文章来自的服务器（设计文档 §11.7）；由同步写入。 */
     val articlesFrom: String = "",
-)
+    /** Null until chosen; see [kind]. / 选择之前为 null；见 [kind]。 */
+    val source: NewsSourceKind? = null,
+    val feeds: List<Feed> = emptyList(),
+    /** The suggested feeds were shown once; they do not pop up again. / 推荐源已经弹出过一次，不再自动弹出。 */
+    val starterOffered: Boolean = false,
+) {
+    /**
+     * The source in use: the one chosen, else Miniflux for someone who already set up a server, else feeds.
+     * 正在使用的来源：选过的那个；没选过时，已经设置了服务器的用 Miniflux，否则用订阅源。
+     */
+    fun kind(): NewsSourceKind = source ?: if (serverUrl.isNotBlank()) NewsSourceKind.MINIFLUX else NewsSourceKind.RSS
+}
 
 /** Saved values reach the source's inputs through DataStore within milliseconds; this is only a safety net. / 保存的值经 DataStore 几毫秒内就到达来源输入；这只是兜底。 */
 private const val INPUT_WAIT_MS = 5_000L
+
+/** Feed links on a web page tried when the page itself is not a feed. / 网页本身不是订阅源时，最多尝试它指向的几个订阅源链接。 */
+private const val MAX_DISCOVERED = 3
 
 /** Cached list items beyond the current list before the cache is pruned. / 缓存的列表项比当前列表多出这么多时才清理。 */
 private const val ITEM_CACHE_SLACK = 50
@@ -95,35 +121,52 @@ private class NewsInstance(private val ctx: ModuleContext) : ModuleInstance {
     private val llmKey = ctx.secret("llm_api_key")
     private val articles = RoomArticleStore(ctx.database(NewsDatabase::class, *NewsDatabase.MIGRATIONS).articles())
     private val miniflux = MinifluxApi(ctx.http)
+    private val feedApi = FeedApi(ctx.http)
     private val llm = LlmApi(ctx.http)
-    private val sync = NewsSync(
-        articles,
-        miniflux,
-        object : ArticleOwner {
-            override suspend fun get() = store.get().articlesFrom
-            override suspend fun set(baseUrl: String) = store.update { it.copy(articlesFrom = baseUrl) }
-        },
-    )
+    private val owner = object : ArticleOwner {
+        override suspend fun get() = store.get().articlesFrom
+        override suspend fun set(baseUrl: String) = store.update { it.copy(articlesFrom = baseUrl) }
+    }
+
+    /** One lock for both syncs: they share the stored articles. / 两种同步共用一把锁：它们读写同一批本地文章。 */
+    private val lock = Mutex()
+    private val sync = NewsSync(articles, miniflux, owner, lock)
+    private val feedSync = FeedSync(articles, feedApi, owner, lock)
+
+    private val kind: Flow<NewsSourceKind> = store.flow.map { it.kind() }.distinctUntilChanged()
 
     private val source = NewsSyncSource(
         id = ctx.sourceId("sync"),
         store = ctx.snapshots(ctx.sourceId("sync"), SyncSummary.serializer()),
         clock = ctx.clock,
-        baseUrl = store.flow.map { it.serverUrl }.distinctUntilChanged(),
+        settings = store.flow.map { NewsSourceSettings(it.kind(), it.serverUrl, it.feeds) }.distinctUntilChanged(),
         secret = token.observe(),
         token = token::usable,
         sync = sync,
+        feedSync = feedSync,
     )
 
     override val sources = listOf(source)
 
     private val ready: Flow<Boolean> = combine(store.flow, token.observe()) { s, t ->
-        NewsSyncPolicy.normalizeBaseUrl(s.serverUrl) != null && t.display.isNotBlank()
+        when (s.kind()) {
+            NewsSourceKind.RSS -> s.feeds.isNotEmpty()
+            NewsSourceKind.MINIFLUX -> NewsSyncPolicy.normalizeBaseUrl(s.serverUrl) != null && t.display.isNotBlank()
+        }
     }.distinctUntilChanged()
 
-    override val configured: Flow<ConfigState> = ready.map {
-        if (it) ConfigState.Ready else ConfigState.NeedsSetup(uiText(R.string.news_setup_server))
+    override val configured: Flow<ConfigState> = combine(ready, kind) { isReady, k ->
+        when {
+            isReady -> ConfigState.Ready
+            k == NewsSourceKind.RSS -> ConfigState.NeedsSetup(uiText(R.string.news_setup_feeds))
+            else -> ConfigState.NeedsSetup(uiText(R.string.news_setup_server))
+        }
     }
+
+    /** The summarize button only shows once endpoint, model and key are all set. / 接口、模型与 Key 都填好后才显示生成摘要的按钮。 */
+    private val summarizerReady: Flow<Boolean> = combine(store.flow, llmKey.observe()) { s, k ->
+        NewsSyncPolicy.normalizeBaseUrl(s.llmUrl) != null && s.llmModel.isNotBlank() && k.display.isNotBlank()
+    }.distinctUntilChanged()
 
     override val homeCards = listOf(
         HomeCard(key = "unread", title = R.string.news_title, defaultOrder = 300) {
@@ -132,8 +175,16 @@ private class NewsInstance(private val ctx: ModuleContext) : ModuleInstance {
             val summary by remember { articles.observeSummary() }.collectAsStateWithLifecycle(initialValue = null)
             val status by ctx.coordinator.status.collectAsStateWithLifecycle()
             val isReady by ready.collectAsStateWithLifecycle(initialValue = true)
+            val k by kind.collectAsStateWithLifecycle(initialValue = NewsSourceKind.RSS)
             val stale = snapshot?.let { source.isStale(it, ctx.clock.now().toInstant()) } == true
-            NewsCard(summary.takeIf { snapshot != null }, isReady, status[source.id]?.lastError, stale, snapshot?.value?.pushRejected == true)
+            NewsCard(
+                summary = summary.takeIf { snapshot != null },
+                configured = isReady,
+                feeds = k == NewsSourceKind.RSS,
+                error = status[source.id]?.lastError,
+                stale = stale,
+                pushRejected = snapshot?.value?.pushRejected == true,
+            )
         },
     )
 
@@ -143,13 +194,52 @@ private class NewsInstance(private val ctx: ModuleContext) : ModuleInstance {
         val saved by store.flow.collectAsStateWithLifecycle(initialValue = NewsSettings())
         val tokenState by token.observe().collectAsStateWithLifecycle(initialValue = SecretState.EMPTY)
         val keyState by llmKey.observe().collectAsStateWithLifecycle(initialValue = SecretState.EMPTY)
+        val snapshot by source.observe().collectAsStateWithLifecycle(initialValue = null)
         NewsSettingsSection(
             saved = saved,
             token = tokenState,
             llmKey = keyState,
+            feedStates = snapshot?.value?.feeds.orEmpty(),
             connect = ::connect,
+            addFeed = ::addFeed,
             saveLlmKey = { plain -> ctx.appScope.launch { llmKey.put(plain) } },
         ) { transform -> ctx.appScope.launch { store.update(transform) } }
+    }
+
+    /**
+     * Checks an address the user typed and adds the feed: the address itself when it is a feed, else the first feed the page
+     * links to. Runs in the app scope, so leaving Settings halfway still adds it; the new feed list then refreshes the source.
+     * 检查用户输入的地址并添加订阅源：地址本身是订阅源就用它，否则用网页指向的第一个订阅源。放在应用级作用域里运行，中途离开设置页
+     * 也会添加；订阅源列表一变，来源就会刷新。
+     */
+    private suspend fun addFeed(text: String): AddFeedResult = ctx.appScope.async {
+        val url = FeedPolicy.normalizeFeedUrl(text) ?: return@async AddFeedResult.Invalid
+        val before = store.get().feeds
+        if (before.any { it.url == url }) return@async AddFeedResult.Exists
+        if (before.size >= FeedPolicy.MAX_FEEDS) return@async AddFeedResult.Full
+        try {
+            val (feedUrl, parsed) = findFeed(url) ?: return@async AddFeedResult.NotFound
+            if (store.get().feeds.any { it.url == feedUrl }) return@async AddFeedResult.Exists
+            val title = parsed.title.ifBlank { FeedPolicy.hostOf(feedUrl) }
+            store.update { it.copy(feeds = FeedPolicy.add(it.feeds, listOf(Feed(feedUrl, title)))) }
+            AddFeedResult.Added(title)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            AddFeedResult.Failed(e as? AppError ?: AppError.Unexpected(e))
+        }
+    }.await()
+
+    private suspend fun findFeed(url: String): Pair<String, ParsedFeed>? {
+        val page = feedApi.fetch(url, "", "") as? FetchResult.Fetched ?: return null
+        FeedParser.parse(page.bytes)?.let { return url to it }
+        val candidates = FeedParser.discover(String(page.bytes, Charsets.UTF_8), page.finalUrl.ifBlank { url })
+        for (candidate in candidates.take(MAX_DISCOVERED)) {
+            val feedUrl = FeedPolicy.normalizeFeedUrl(candidate) ?: continue
+            val fetched = feedApi.fetch(feedUrl, "", "") as? FetchResult.Fetched ?: continue
+            FeedParser.parse(fetched.bytes)?.let { return feedUrl to it }
+        }
+        return null
     }
 
     /**
@@ -194,6 +284,7 @@ private class NewsInstance(private val ctx: ModuleContext) : ModuleInstance {
 
         override fun fetchFullText(article: StoredArticle) {
             ctx.appScope.launch {
+                if (store.get().kind() != NewsSourceKind.MINIFLUX) return@launch
                 val base = NewsSyncPolicy.normalizeBaseUrl(store.get().serverUrl) ?: return@launch
                 val key = token.usable().ifBlank { return@launch }
                 sync.fetchFullText(base, key, article.id, ctx.clock.now().toInstant().toEpochMilli())
@@ -212,6 +303,7 @@ private class NewsInstance(private val ctx: ModuleContext) : ModuleInstance {
 
     /** Best effort: whatever fails here goes out with the next sync. / 尽力而为：这里失败的会随下一次同步发出。 */
     private suspend fun pushReadStates() {
+        if (store.get().kind() != NewsSourceKind.MINIFLUX) return
         val base = NewsSyncPolicy.normalizeBaseUrl(store.get().serverUrl) ?: return
         val key = token.usable().ifBlank { return }
         try {
@@ -250,6 +342,9 @@ private class NewsInstance(private val ctx: ModuleContext) : ModuleInstance {
         val counts by remember { articles.observeSummary() }.collectAsStateWithLifecycle(initialValue = null)
         val snapshot by source.observe().collectAsStateWithLifecycle(initialValue = null)
         val status by ctx.coordinator.status.collectAsStateWithLifecycle()
+        val k by kind.collectAsStateWithLifecycle(initialValue = NewsSourceKind.RSS)
+        val canSummarize by summarizerReady.collectAsStateWithLifecycle(initialValue = false)
+        val feedList by remember { store.flow.map { it.feeds }.distinctUntilChanged() }.collectAsStateWithLifecycle(initialValue = emptyList())
         LaunchedEffect(Unit) {
             try {
                 ctx.coordinator.refreshDue(setOf(source.id), Trigger.AUTO, daytime = false, throttleFailures = true)
@@ -259,8 +354,12 @@ private class NewsInstance(private val ctx: ModuleContext) : ModuleInstance {
                 // Shown through the coordinator's status. / 通过协调器状态显示。
             }
         }
+        val feeds = k == NewsSourceKind.RSS
         NewsTab(
             configured = isReady,
+            feeds = feeds,
+            failingFeeds = if (feeds) FeedPolicy.failing(feedList, snapshot?.value?.feeds.orEmpty()) else emptyList(),
+            canSummarize = canSummarize,
             filter = filter,
             onFilter = { filter = it },
             query = query,
