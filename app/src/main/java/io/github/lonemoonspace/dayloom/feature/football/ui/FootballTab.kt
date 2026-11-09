@@ -50,6 +50,7 @@ import io.github.lonemoonspace.dayloom.core.ui.SkeletonLines
 import io.github.lonemoonspace.dayloom.core.ui.StatusChip
 import io.github.lonemoonspace.dayloom.core.ui.plusBars
 import io.github.lonemoonspace.dayloom.core.ui.rememberTimeFormatter
+import io.github.lonemoonspace.dayloom.core.ui.theme.CARD_BORDER_WIDTH
 import io.github.lonemoonspace.dayloom.core.ui.theme.appSurfaces
 import io.github.lonemoonspace.dayloom.core.ui.theme.statusColors
 import io.github.lonemoonspace.dayloom.feature.football.domain.FootballPolicy
@@ -485,9 +486,12 @@ private fun ResultCard(match: Match, teamId: Int, now: ZonedDateTime, crests: Cr
         Outcome.LOSS -> MaterialTheme.statusColors.red
         null -> Color.Transparent
     }
+    val surfaces = MaterialTheme.appSurfaces
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.appSurfaces.card, contentColor = MaterialTheme.colorScheme.onSurface),
+        colors = CardDefaults.cardColors(containerColor = surfaces.card, contentColor = MaterialTheme.colorScheme.onSurface),
+        // Over the weave the fill is see-through; the hairline keeps the edge, as on every card. / 织纹上底色半透明，与其他卡片一样靠细边保留边缘。
+        border = surfaces.cardBorder.takeIf { it != Color.Transparent }?.let { BorderStroke(CARD_BORDER_WIDTH, it) },
     ) {
         Row(Modifier.height(IntrinsicSize.Min)) {
             Box(

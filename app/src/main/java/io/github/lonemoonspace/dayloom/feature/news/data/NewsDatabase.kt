@@ -65,6 +65,9 @@ interface ArticleDao {
     @Query("SELECT * FROM article")
     suspend fun all(): List<ArticleEntity>
 
+    @Query("SELECT id FROM article")
+    suspend fun ids(): List<Long>
+
     @Upsert
     suspend fun upsert(rows: List<ArticleEntity>)
 
@@ -146,6 +149,8 @@ object Migration1To2 : Migration(1, 2) {
 
 class RoomArticleStore(private val dao: ArticleDao) : ArticleStore {
     override suspend fun all(): List<StoredArticle> = dao.all().map { it.toArticle() }
+
+    override suspend fun ids(): List<Long> = dao.ids()
 
     override suspend fun pending(): List<StoredArticle> = dao.pending().map { StoredArticle(it.id, pendingRead = it.pendingRead, pendingStarred = it.pendingStarred) }
 

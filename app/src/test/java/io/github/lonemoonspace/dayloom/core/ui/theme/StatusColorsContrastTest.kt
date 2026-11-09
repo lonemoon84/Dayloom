@@ -1,6 +1,8 @@
 package io.github.lonemoonspace.dayloom.core.ui.theme
 
 import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.graphics.Color
 import io.github.lonemoonspace.dayloom.core.ui.STATUS_CHIP_TINT
 import kotlin.math.pow
@@ -72,6 +74,31 @@ class StatusColorsContrastTest {
             val woven = blend(thread, s.background, thread.alpha)
             for ((textName, text) in listOf("text" to s.onBackground, "greeting" to s.primary, "muted text" to s.onSurfaceVariant)) {
                 assertTrue("$name $textName on a weave thread", contrast(text, woven) >= AA_TEXT)
+            }
+        }
+    }
+
+    @Test
+    fun `text on see-through cards keeps AA contrast over the page and over a weave thread`() {
+        // The wallpaper scheme changes with the phone; the M3 baseline stands in for it. / 壁纸配色随手机而变；用 M3 基线代替。
+        val wallpaper = listOf(Triple("wallpaper light (baseline)", lightColorScheme(), false), Triple("wallpaper dark (baseline)", darkColorScheme(), true))
+        for ((name, s, dark) in presetSchemes + wallpaper) {
+            val solid = appSurfacesFor(s, dark)
+            val clear = solid.overWeave()
+            val thread = weaveColor(s, dark)
+            val colors = if (dark) DarkStatusColors else LightStatusColors
+            for ((underName, under) in listOf("page" to s.background, "thread" to blend(thread, s.background, thread.alpha))) {
+                val card = blend(clear.card, under, clear.card.alpha)
+                val tile = blend(clear.tile, card, clear.tile.alpha)
+                for ((bgName, bg) in listOf("card" to card, "tile" to tile)) {
+                    val where = "$name on a $bgName over the $underName"
+                    assertTrue("$where: text", contrast(s.onSurface, bg) >= AA_TEXT)
+                    assertTrue("$where: muted text", contrast(s.onSurfaceVariant, bg) >= AA_TEXT)
+                    for ((colorName, color) in colors.named()) {
+                        assertTrue("$where: $colorName", contrast(color, bg) >= AA_TEXT)
+                        assertTrue("$where: $colorName chip", contrast(color, blend(color, bg, STATUS_CHIP_TINT)) >= AA_TEXT)
+                    }
+                }
             }
         }
     }

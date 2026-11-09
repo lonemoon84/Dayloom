@@ -67,6 +67,9 @@ import io.github.lonemoonspace.dayloom.core.ui.LocalBarInsets
 import io.github.lonemoonspace.dayloom.core.ui.LocalHazeState
 import io.github.lonemoonspace.dayloom.core.ui.NavTab
 import io.github.lonemoonspace.dayloom.core.ui.PullRefresh
+import io.github.lonemoonspace.dayloom.core.ui.theme.LocalAppSurfaces
+import io.github.lonemoonspace.dayloom.core.ui.theme.appSurfaces
+import io.github.lonemoonspace.dayloom.core.ui.theme.overWeave
 import io.github.lonemoonspace.dayloom.core.ui.theme.weaveBackground
 import io.github.lonemoonspace.dayloom.core.ui.theme.weaveColor
 import kotlinx.coroutines.CancellationException
@@ -281,7 +284,13 @@ private fun MainShell(graph: AppGraph, pendingIntent: Intent?, weave: Boolean) {
                     .background(scheme.background)
                     .then(weaveLayer),
             ) {
-                CompositionLocalProvider(LocalBarInsets provides padding) {
+                // Cards on these pages let the weave show through; with the weave off, or outside this shell, cards stay solid.
+                // 这些页面上的卡片透出织纹；关掉织纹或不在这个外壳里时，卡片仍是实心的。
+                val surfaces = MaterialTheme.appSurfaces
+                CompositionLocalProvider(
+                    LocalBarInsets provides padding,
+                    LocalAppSurfaces provides remember(weave, surfaces) { if (weave) surfaces.overWeave() else surfaces },
+                ) {
                     NavHost(navController = navController, startDestination = Routes.HOME, modifier = Modifier.fillMaxSize()) {
                         composable(Routes.HOME) {
                             LifecycleStartEffect(homeVm) {

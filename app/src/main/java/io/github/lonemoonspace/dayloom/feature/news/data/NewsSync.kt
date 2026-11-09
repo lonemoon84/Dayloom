@@ -13,6 +13,9 @@ import io.github.lonemoonspace.dayloom.core.storage.SnapshotStore
 import io.github.lonemoonspace.dayloom.core.time.AppClock
 import io.github.lonemoonspace.dayloom.feature.news.domain.ArticleOwner
 import io.github.lonemoonspace.dayloom.feature.news.domain.ArticleStore
+import io.github.lonemoonspace.dayloom.feature.news.domain.Feed
+import io.github.lonemoonspace.dayloom.feature.news.domain.FeedPolicy
+import io.github.lonemoonspace.dayloom.feature.news.domain.NewsSourceKind
 import io.github.lonemoonspace.dayloom.feature.news.domain.NewsSyncPolicy
 import io.github.lonemoonspace.dayloom.feature.news.domain.SyncSummary
 import java.time.Duration
@@ -33,8 +36,13 @@ import kotlinx.coroutines.sync.withLock
  * 与 Miniflux 的双向同步。网络调用在锁外进行，服务器慢时点按也不会卡住；对本地文章的每次读写都在锁内，合并时只清除值与已发送值
  * 相同的待发送修改。本地文章属于一台服务器（[owner]）；与另一台同步时，等那台服务器成功应答后才清空，本地的东西绝不会发给它不是来自的服务器。
  */
-class NewsSync(private val store: ArticleStore, private val api: MinifluxApi, private val owner: ArticleOwner) {
-    private val lock = Mutex()
+class NewsSync(
+    private val store: ArticleStore,
+    private val api: MinifluxApi,
+    private val owner: ArticleOwner,
+    /** Shared with [FeedSync]: both read and write the same stored articles. / 与 [FeedSync] 共用：两者读写的是同一批本地文章。 */
+    private val lock: Mutex = Mutex(),
+) {
 
     /** One immediate push at a time, so a quick read-then-unread reaches the server in that order. / 同一时间只有一次即时推送，快速的已读再未读按这个顺序到达服务器。 */
     private val pushLock = Mutex()
@@ -169,21 +177,32 @@ class NewsSync(private val store: ArticleStore, private val api: MinifluxApi, pr
     }
 }
 
-data class NewsParams(val baseUrl: String)
+/** What the sync needs: the Miniflux server, or the feeds to read. / 同步需要的输入：Miniflux 服务器，或要读取的订阅源。 */
+sealed interface NewsParams {
+    data class Miniflux(val baseUrl: String) : NewsParams
+
+    data class Feeds(val feeds: List<Feed>) : NewsParams
+}
+
+/** The settings the source reads. / 来源读取的设置。 */
+data class NewsSourceSettings(val kind: NewsSourceKind, val serverUrl: String, val feeds: List<Feed>)
 
 /**
  * `news.sync`: runs the sync in the shared refresh round (every 30 minutes, also in the background) and keeps the home
- * card's numbers as its snapshot; the articles themselves live in Room.
- * `news.sync`：在共用的刷新轮次里运行同步（每 30 分钟一次，后台也跑），快照里只存首页卡片要的数字；文章本身在 Room 里。
+ * card's numbers as its snapshot; the articles themselves live in Room. Reads Miniflux or the feeds, whichever source the
+ * user chose. The feeds share one snapshot key, so adding a feed refreshes without losing the per-feed validators.
+ * `news.sync`：在共用的刷新轮次里运行同步（每 30 分钟一次，后台也跑），快照里只存首页卡片要的数字；文章本身在 Room 里。按用户选择的
+ * 来源读取 Miniflux 或订阅源。所有订阅源共用一个快照 key，添加订阅源会触发刷新，但不会丢掉各个源的校验值。
  */
 class NewsSyncSource(
     id: SourceId,
     store: SnapshotStore<SyncSummary>,
     clock: AppClock,
-    baseUrl: Flow<String>,
+    settings: Flow<NewsSourceSettings>,
     secret: Flow<SecretState>,
     private val token: suspend () -> String,
     private val sync: NewsSync,
+    private val feedSync: FeedSync,
 ) : CachedSource<NewsParams, SyncSummary>(id, store, clock) {
 
     override val schemaVersion = 1
@@ -192,17 +211,32 @@ class NewsSyncSource(
 
     override val cadence = RefreshCadence(interval = Duration.ofMinutes(30))
 
-    override val inputs: Flow<SourceInput<NewsParams>> = combine(baseUrl, secret) { url, s ->
-        val normalized = NewsSyncPolicy.normalizeBaseUrl(url)
-        when {
-            normalized == null -> SourceInput.Missing(uiText(R.string.news_setup_server))
-            s.display.isBlank() -> SourceInput.Missing(uiText(R.string.news_setup_token))
-            else -> SourceInput.Ready(NewsParams(normalized), key = normalized, refreshKey = normalized to Objects.hash(s.display, s.unreadable))
+    override val inputs: Flow<SourceInput<NewsParams>> = combine(settings, secret) { settings, s ->
+        when (settings.kind) {
+            NewsSourceKind.RSS -> if (settings.feeds.isEmpty()) {
+                SourceInput.Missing(uiText(R.string.news_setup_feeds))
+            } else {
+                SourceInput.Ready(NewsParams.Feeds(settings.feeds), key = FeedPolicy.OWNER, refreshKey = settings.feeds.map { it.url })
+            }
+            NewsSourceKind.MINIFLUX -> {
+                val normalized = NewsSyncPolicy.normalizeBaseUrl(settings.serverUrl)
+                when {
+                    normalized == null -> SourceInput.Missing(uiText(R.string.news_setup_server))
+                    s.display.isBlank() -> SourceInput.Missing(uiText(R.string.news_setup_token))
+                    else -> SourceInput.Ready(NewsParams.Miniflux(normalized), key = normalized, refreshKey = normalized to Objects.hash(s.display, s.unreadable))
+                }
+            }
         }
     }
 
     override suspend fun fetch(params: NewsParams, now: ZonedDateTime, previous: Snapshot<SyncSummary>?): SyncSummary {
-        val key = token().ifBlank { throw AppError.NotConfigured(uiText(R.string.news_setup_token)) }
-        return sync.sync(params.baseUrl, key, now.toInstant().toEpochMilli())
+        val nowMillis = now.toInstant().toEpochMilli()
+        return when (params) {
+            is NewsParams.Feeds -> feedSync.sync(params.feeds, previous?.value?.feeds.orEmpty(), nowMillis)
+            is NewsParams.Miniflux -> {
+                val key = token().ifBlank { throw AppError.NotConfigured(uiText(R.string.news_setup_token)) }
+                sync.sync(params.baseUrl, key, nowMillis)
+            }
+        }
     }
 }

@@ -76,6 +76,8 @@ data class SyncSummary(
     val total: Int = 0,
     /** The last sync could not send the changes made here (read-only token, a proxy refusing PUT…); they stay pending. / 上一次同步没能发出本机的修改（只读令牌、代理拒绝 PUT……）；修改仍待发送。 */
     val pushRejected: Boolean = false,
+    /** Per-feed results of the last sync when the source is feeds; empty for Miniflux. / 来源是订阅源时，上一次同步每个源的结果；Miniflux 时为空。 */
+    val feeds: List<FeedState> = emptyList(),
 )
 
 /** An article with what the list shows of it; [text] is its plain text, for search. / 文章及其在列表里显示的内容；[text] 是纯文本，供搜索用。 */

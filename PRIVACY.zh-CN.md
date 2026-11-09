@@ -21,7 +21,8 @@ App 只联系你打开的模块对应的服务，并且只发送它需要的内�
 | 地点 | 有 Key 时用 Google Places API，否则用 Entur 与 OpenStreetMap（Nominatim） | 地点搜索里输入的文字 |
 | 路况 | 用你的 Key 调 Google Routes API | 你选的两个地点的坐标 |
 | 足球 | 用你的 Key 调 football-data.org | 你关注的赛事与球队 |
-| 新闻 | 你自己的 Miniflux 服务器 | 你的令牌；已读与收藏的修改 |
+| 新闻（直接订阅） | 你订阅的各个网站 | 对每个订阅源的普通请求；不含你的任何信息，也不含你读了什么 |
+| 新闻（Miniflux） | 你自己的 Miniflux 服务器 | 你的令牌；已读与收藏的修改 |
 | 新闻 AI 摘要 | 你配置的接口 | 文章标题与正文，只在你点「生成摘要」时发送 |
 
 按挪威气象局的要求，每个请求都以 `Dayloom/<版本> (+https://github.com/lonemoonspace/dayloom)` 标明身份。

@@ -6,14 +6,21 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.unit.dp
 
 /**
- * Card colours shared by every card, taken from the colour scheme by [appSurfacesFor].
- * 所有卡片共用的底色，由 [appSurfacesFor] 从配色中取。
+ * Card colours shared by every card, taken from the colour scheme by [appSurfacesFor]. A data class: the composition local
+ * is static, so an equal copy must not count as a change and recompose every screen.
+ * 所有卡片共用的底色，由 [appSurfacesFor] 从配色中取。用 data class：这个 CompositionLocal 是 static 的，内容相同的新实例
+ * 不能被当成变化而让所有页面重组。
  */
 @Immutable
-class AppSurfaces(
+data class AppSurfaces(
     val card: Color,
     /** A tile inside a card: halfway between card and surface. / 卡片里再分一层的小块：卡片色与 surface 各半。 */
     val tile: Color,
@@ -36,6 +43,24 @@ fun appSurfacesFor(scheme: ColorScheme, dark: Boolean): AppSurfaces = if (dark) 
 }
 
 /**
+ * The same surfaces made see-through, for pages drawn over the woven background, so the weave shows through the cards.
+ * The border stays as it is: it is what keeps a card's edge visible once its fill is faint.
+ * 同一组底色改成半透明，用在铺了织纹背景的页面上，卡片下面也能看到织纹。细边保持不变：底色变淡后，靠它分清卡片的边缘。
+ */
+fun AppSurfaces.overWeave(): AppSurfaces = AppSurfaces(
+    card = card.copy(alpha = card.alpha * CARD_ALPHA_OVER_WEAVE),
+    tile = tile.copy(alpha = tile.alpha * CARD_ALPHA_OVER_WEAVE),
+    cardBorder = cardBorder,
+)
+
+/**
+ * Card opacity over the weave. Light weave lines are only a shade off the page, so they barely show through anything more
+ * opaque than this.
+ * 卡片在织纹上的不透明度。浅色织纹与页面只差一点明度，比这更不透明时几乎透不出来。
+ */
+const val CARD_ALPHA_OVER_WEAVE = 0.55f
+
+/**
  * The neutral tones [DayloomTheme] uses (M3 baseline values; a wallpaper only changes their faint hue): light cards are
  * tone 100 on tone 96 tiles, dark cards tone 12 with tone 17 tiles. Used as the preview default and by the contrast test.
  * [DayloomTheme] 用到的中性色明度（M3 基线值；壁纸只改变其中很淡的色相）：浅色卡片为明度 100、小块 96，深色卡片 12、小块 17。
@@ -51,3 +76,14 @@ val MaterialTheme.appSurfaces: AppSurfaces
     @Composable
     @ReadOnlyComposable
     get() = LocalAppSurfaces.current
+
+/**
+ * A card's fill plus its hairline border, for surfaces that are not an [androidx.compose.material3.Card]. Over the weave
+ * the fill is see-through, so the border is what keeps the card's edge.
+ * 卡片底色加细边，给不是 [androidx.compose.material3.Card] 的卡片用。在织纹上底色是半透明的，卡片边缘靠这圈细边。
+ */
+fun Modifier.cardSurface(surfaces: AppSurfaces, shape: Shape): Modifier = background(surfaces.card, shape)
+    .then(if (surfaces.cardBorder != Color.Transparent) Modifier.border(CARD_BORDER_WIDTH, surfaces.cardBorder, shape) else Modifier)
+
+/** The hairline every card shares. / 所有卡片共用的细边宽度。 */
+val CARD_BORDER_WIDTH = 0.5.dp
