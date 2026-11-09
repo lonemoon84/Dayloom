@@ -17,10 +17,10 @@ import kotlin.math.roundToInt
 
 /**
  * A faint plain-weave texture over the page colour, echoing the app's name: every thread goes over one crossing and under
- * the next. It is one small tile repeated by a shader, built once per size and colour. Cards are opaque, so their text is
- * untouched; only the gaps, the calendar header and the blurred bars show it.
- * 页面底色上一层淡淡的平纹织纹，呼应「织日」：每根线一上一下交织。用着色器重复一小块图案，每种尺寸和颜色只生成一次。卡片
- * 不透明，卡片上的字不受影响；只有卡片间的空隙、日历页头和毛玻璃顶栏底栏能看到。
+ * the next. It is one small tile repeated by a shader, built once per size and colour. Cards over it are see-through
+ * ([overWeave]), so it shows behind them as well as in the gaps, the calendar header and the blurred bars.
+ * 页面底色上一层淡淡的平纹织纹，呼应「织日」：每根线一上一下交织。用着色器重复一小块图案，每种尺寸和颜色只生成一次。上面的卡片
+ * 是半透明的（[overWeave]），所以卡片后面、卡片间的空隙、日历页头和毛玻璃顶栏底栏都能看到。
  */
 fun Modifier.weaveBackground(color: Color): Modifier = drawWithCache {
     val cell = WEAVE_CELL.toPx().roundToInt().coerceAtLeast(MIN_CELL_PX)

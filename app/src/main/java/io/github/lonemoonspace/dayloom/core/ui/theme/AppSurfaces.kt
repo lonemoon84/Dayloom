@@ -36,6 +36,24 @@ fun appSurfacesFor(scheme: ColorScheme, dark: Boolean): AppSurfaces = if (dark) 
 }
 
 /**
+ * The same surfaces made see-through, for pages drawn over the woven background, so the weave shows through the cards.
+ * The border stays as it is: it is what keeps a card's edge visible once its fill is faint.
+ * 同一组底色改成半透明，用在铺了织纹背景的页面上，卡片下面也能看到织纹。细边保持不变：底色变淡后，靠它分清卡片的边缘。
+ */
+fun AppSurfaces.overWeave(): AppSurfaces = AppSurfaces(
+    card = card.copy(alpha = card.alpha * CARD_ALPHA_OVER_WEAVE),
+    tile = tile.copy(alpha = tile.alpha * CARD_ALPHA_OVER_WEAVE),
+    cardBorder = cardBorder,
+)
+
+/**
+ * Card opacity over the weave. Light weave lines are only a shade off the page, so they barely show through anything more
+ * opaque than this.
+ * 卡片在织纹上的不透明度。浅色织纹与页面只差一点明度，比这更不透明时几乎透不出来。
+ */
+const val CARD_ALPHA_OVER_WEAVE = 0.55f
+
+/**
  * The neutral tones [DayloomTheme] uses (M3 baseline values; a wallpaper only changes their faint hue): light cards are
  * tone 100 on tone 96 tiles, dark cards tone 12 with tone 17 tiles. Used as the preview default and by the contrast test.
  * [DayloomTheme] 用到的中性色明度（M3 基线值；壁纸只改变其中很淡的色相）：浅色卡片为明度 100、小块 96，深色卡片 12、小块 17。

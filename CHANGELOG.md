@@ -21,7 +21,9 @@ looks it up literally.
   Long Cang, next to the title.
 - Woven background: a faint plain-weave texture behind every page, echoing the app's name. Light themes draw it a shade
   lighter than the page, dark themes a faint light line; text written on the page still meets the contrast
-  standard, and cards are untouched. It can be turned off under Settings → Theme.
+  standard. Cards are see-through (55%) so the weave shows behind them too, with their hairline border keeping the edge
+  and every text and status colour still meeting the contrast standard. It can be turned off under Settings → Theme, which
+  also makes the cards solid again.
 - Weather: when MET Norway sends a forecast cut off halfway (it did on 5 November 2026 for places in Norway), the app
   reads MET's shorter forecast instead of keeping the old one and showing "could not read the data". Until the next
   refresh the card shows no gusts, UV or rain chance, and feels-like shows the air temperature. The error line on the weather card
@@ -37,7 +39,8 @@ looks it up literally.
   由农历让位。
 - 首页顶栏：标题旁加了标语「千丝万缕，织成一日」（英文 "All threads, for your day"），分别用龙藏体和 Parisienne 手写字体。
 - 背景织纹：每个页面背后加了一层淡淡的平纹织纹，呼应「织日」这个名字。浅色主题的织纹比页面略浅，深色主题用很淡的浅色线，
-  直接写在页面上的文字对比度仍然达标；卡片不受影响。可以在「设置 → 外观与主题」里关掉。
+  直接写在页面上的文字对比度仍然达标。卡片改成半透明（55%），后面的织纹也能透出来，靠细边分清边缘，卡片上的文字和状态色
+  对比度依旧达标。可以在「设置 → 外观与主题」里关掉，关掉后卡片也恢复实心。
 - 天气：MET Norway 发来的预报在中途被截断时（2026 年 11 月 5 日挪威境内的地点就出现过），App 改读 MET 的精简版预报，
   不再停在旧预报上并提示「返回的数据无法读取」。到下次刷新前，卡片上没有阵风、紫外线与降水概率，体感温度显示为气温。
   天气卡上的错误提示前面不再有「!」。

@@ -77,6 +77,29 @@ class StatusColorsContrastTest {
     }
 
     @Test
+    fun `text on see-through cards keeps AA contrast over the page and over a weave thread`() {
+        for ((name, s, dark) in presetSchemes) {
+            val solid = appSurfacesFor(s, dark)
+            val clear = solid.overWeave()
+            val thread = weaveColor(s, dark)
+            val colors = if (dark) DarkStatusColors else LightStatusColors
+            for ((underName, under) in listOf("page" to s.background, "thread" to blend(thread, s.background, thread.alpha))) {
+                val card = blend(clear.card, under, clear.card.alpha)
+                val tile = blend(clear.tile, card, clear.tile.alpha)
+                for ((bgName, bg) in listOf("card" to card, "tile" to tile)) {
+                    val where = "$name on a $bgName over the $underName"
+                    assertTrue("$where: text", contrast(s.onSurface, bg) >= AA_TEXT)
+                    assertTrue("$where: muted text", contrast(s.onSurfaceVariant, bg) >= AA_TEXT)
+                    for ((colorName, color) in colors.named()) {
+                        assertTrue("$where: $colorName", contrast(color, bg) >= AA_TEXT)
+                        assertTrue("$where: $colorName chip", contrast(color, blend(color, bg, STATUS_CHIP_TINT)) >= AA_TEXT)
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
     fun `cards are lighter than the page in every preset`() {
         for ((name, s, dark) in presetSchemes) {
             assertTrue(name, luminance(appSurfacesFor(s, dark).card) > luminance(s.background))

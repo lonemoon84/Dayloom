@@ -50,15 +50,18 @@ fun InfoCard(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val border = MaterialTheme.appSurfaces.cardBorder
+    val card = MaterialTheme.appSurfaces.card
     val shape = MaterialTheme.shapes.medium
     Card(
         modifier = modifier
             .fillMaxWidth()
             .then(if (border != Color.Transparent) Modifier.border(0.5.dp, border, shape) else Modifier),
         shape = shape,
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        // A see-through card would show its own shadow through the fill as a grey haze, so it gets none.
+        // 半透明的卡片会透出自己的阴影、显得发灰，所以不加阴影。
+        elevation = CardDefaults.cardElevation(defaultElevation = if (card.alpha < 1f) 0.dp else 1.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.appSurfaces.card,
+            containerColor = card,
             contentColor = MaterialTheme.colorScheme.onSurface,
         ),
     ) {
