@@ -9,6 +9,9 @@ import kotlinx.coroutines.flow.Flow
 interface ArticleStore {
     suspend fun all(): List<StoredArticle>
 
+    /** Just the ids, without loading every article's text. / 只取 id，不把每篇文章的正文都读出来。 */
+    suspend fun ids(): List<Long> = all().map { it.id }
+
     /** Only the articles with a change not yet sent, without their text. / 只取有未发送修改的文章，不带正文。 */
     suspend fun pending(): List<StoredArticle>
 

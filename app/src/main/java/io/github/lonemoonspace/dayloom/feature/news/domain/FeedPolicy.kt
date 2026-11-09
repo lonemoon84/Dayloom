@@ -26,9 +26,10 @@ object FeedPolicy {
 
     /**
      * A feed address the user typed or imported: trimmed, https only (Android blocks clear text and nothing else could
-     * vouch for the content); an address without a scheme gets https. Path and query are kept as typed. Null when unusable.
-     * 用户输入或导入的订阅地址：去掉首尾空白，只接受 https（Android 会拦截明文连接）；没写协议的补上 https。路径与查询参数原样保留。
-     * 无法使用时为 null。
+     * vouch for the content); an address without a scheme gets https. The host is lower-cased so one feed is not followed
+     * twice; path and query are kept as typed, since servers may tell them apart. Null when unusable.
+     * 用户输入或导入的订阅地址：去掉首尾空白，只接受 https（Android 会拦截明文连接）；没写协议的补上 https。主机名转成小写，同一个源
+     * 不会被订阅两次；路径与查询参数原样保留，因为服务器可能区分大小写。无法使用时为 null。
      */
     fun normalizeFeedUrl(text: String): String? {
         val typed = text.trim()
@@ -42,7 +43,9 @@ object FeedPolicy {
         }
         val host = uri.host ?: return null
         if (host.isBlank() || '.' !in host) return null
-        return "https://" + withScheme.substring("https://".length)
+        val rest = withScheme.substring("https://".length)
+        val authorityEnd = rest.indexOfFirst { it == '/' || it == '?' || it == '#' }.let { if (it < 0) rest.length else it }
+        return "https://" + rest.substring(0, authorityEnd).lowercase() + rest.substring(authorityEnd)
     }
 
     /**
@@ -79,14 +82,25 @@ object FeedPolicy {
     fun feedTagOf(articleId: Long): Long = articleId ushr ITEM_BITS
 
     /**
+     * The newest [ITEMS_PER_FEED] items of a feed, the only ones [merge] can keep; an undated item counts as new, as merge
+     * dates it now. Trimming right after parsing keeps fifty feeds' worth of article bodies out of memory.
+     * 一个订阅源最新的 [ITEMS_PER_FEED] 条，也就是 [merge] 唯一可能保留的那些；没有日期的条目算作新的，因为合并时会把它记为现在。
+     * 解析后立刻裁剪，五十个源的正文不会同时占着内存。
+     */
+    fun newest(feed: ParsedFeed, nowMillis: Long): ParsedFeed =
+        feed.copy(items = feed.items.distinctBy { it.key }.sortedByDescending { it.publishedAt.takeIf { t -> t > 0 } ?: nowMillis }.take(ITEMS_PER_FEED))
+
+    /**
      * Merges freshly read feeds into the stored articles. A known item keeps its read, starred and summary state and gets
-     * the feed's current text; a new one comes in unread unless it is older than [MAX_AGE]. Articles of feeds no longer
-     * followed go unless starred, read ones [NewsSyncPolicy.KEEP_READ] after reading, unread ones after [MAX_AGE]. Feeds
-     * missing from [fetched] (failed or unchanged) leave their articles as they are. Pending flags are cleared: there is no
-     * server to send them to.
+     * the feed's current text; a new one comes in unread unless it is older than [MAX_AGE]. Unstarred articles go: all of
+     * a feed no longer followed; unread ones older than [MAX_AGE], even while the feed still lists them (they are not added
+     * back); read ones [NewsSyncPolicy.KEEP_READ] after reading once the feed has dropped them, since deleting one it still
+     * lists would bring it back unread. Feeds missing from [fetched] (failed or unchanged) leave their articles as they are.
+     * Pending flags are cleared: there is no server to send them to.
      * 把刚读到的订阅源合并进本地文章。已有的条目保留已读、收藏与摘要，正文换成订阅源当前的内容；新条目以未读加入，早于 [MAX_AGE] 的
-     * 除外。不再订阅的源的文章除收藏外全部删除；已读的在读过 [NewsSyncPolicy.KEEP_READ] 后删除，未读的超过 [MAX_AGE] 后删除。不在
-     * [fetched] 里的源（失败或没有变化）文章保持不动。待发送标记一律清除：没有服务器可发。
+     * 除外。未收藏的文章会删除：不再订阅的源的全部文章；超过 [MAX_AGE] 的未读文章，即使订阅源还列着（之后也不会再加回来）；已读的
+     * 在订阅源不再列出、且读过 [NewsSyncPolicy.KEEP_READ] 之后——订阅源还列着时删掉，下次会以未读的身份回来。不在 [fetched] 里的源
+     * （失败或没有变化）文章保持不动。待发送标记一律清除：没有服务器可发。
      */
     fun merge(local: List<StoredArticle>, fetched: Map<String, ParsedFeed>, feeds: List<Feed>, nowMillis: Long): MergeResult {
         val byId = local.associateBy { it.id }
@@ -98,13 +112,14 @@ object FeedPolicy {
 
         for (feed in feeds) {
             val parsed = fetched[feed.url] ?: continue
-            val items = parsed.items.distinctBy { it.key }.sortedByDescending { it.publishedAt }.take(ITEMS_PER_FEED)
-            for (item in items) {
+            for (item in newest(parsed, nowMillis).items) {
                 val id = articleId(feed.url, item.key)
-                if (!seen.add(id)) continue
+                if (id in seen) continue
                 val old = byId[id]
                 val published = item.publishedAt.takeIf { it > 0 } ?: old?.publishedAt ?: nowMillis
-                if (old == null && nowMillis - published > maxAge) continue
+                // Too old to add, and an old unread one is left for the cleanup below. / 太旧的不加入；旧的未读文章交给下面的清理。
+                if (nowMillis - published > maxAge && (old == null || (!old.read && !old.starred))) continue
+                seen += id
                 val article = StoredArticle(
                     id = id,
                     feedTitle = feed.title.ifBlank { parsed.title },

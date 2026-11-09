@@ -67,6 +67,7 @@ import io.github.lonemoonspace.dayloom.core.ui.rememberMinuteTick
 import io.github.lonemoonspace.dayloom.core.ui.rememberPatternFormatter
 import io.github.lonemoonspace.dayloom.core.ui.rememberTimeFormatter
 import io.github.lonemoonspace.dayloom.core.ui.theme.appSurfaces
+import io.github.lonemoonspace.dayloom.core.ui.theme.cardSurface
 import io.github.lonemoonspace.dayloom.core.ui.theme.statusColors
 import io.github.lonemoonspace.dayloom.core.ui.userMessage
 import io.github.lonemoonspace.dayloom.feature.news.domain.ArticleFilter
@@ -231,7 +232,7 @@ private fun SearchField(query: String, onQuery: (String) -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .height(44.dp)
-            .background(MaterialTheme.appSurfaces.card, MaterialTheme.shapes.small)
+            .cardSurface(MaterialTheme.appSurfaces, MaterialTheme.shapes.small)
             .padding(start = 12.dp),
     ) {
         Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
@@ -273,7 +274,7 @@ private fun ArticleCard(item: ArticleItem, now: ZonedDateTime, showFullText: Boo
     Box(
         Modifier
             .fillMaxWidth()
-            .background(MaterialTheme.appSurfaces.card, MaterialTheme.shapes.medium)
+            .cardSurface(MaterialTheme.appSurfaces, MaterialTheme.shapes.medium)
             .clickable(onClick = onClick),
     ) {
         Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {

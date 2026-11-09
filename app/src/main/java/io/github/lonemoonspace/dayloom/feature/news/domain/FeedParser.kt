@@ -132,12 +132,52 @@ object FeedParser {
                 title = entry.text("title"),
                 link = link,
                 author = entry.child("author")?.text("name").orEmpty(),
-                html = entry.text("content").ifEmpty { entry.text("summary") },
+                html = entry.child("content")?.let(::atomText).orEmpty().ifEmpty { entry.child("summary")?.let(::atomText).orEmpty() },
                 publishedAt = parseDate(entry.text("published").ifEmpty { entry.text("updated") }),
             )
         }
         return ParsedFeed(root.text("title"), items)
     }
+
+    /**
+     * An Atom text construct as HTML: `type="xhtml"` carries real elements, which `textContent` would flatten into one run
+     * of text, so they are written back out as markup; `text` and `html` are already a string.
+     * 把 Atom 的文本结构转成 HTML：`type="xhtml"` 里是真正的元素，`textContent` 会把它们压成一串文字，所以重新写回标记；`text`
+     * 与 `html` 本来就是字符串。
+     */
+    private fun atomText(el: Element): String {
+        if (el.getAttribute("type") != "xhtml") return el.textContent.trim()
+        // The spec wraps xhtml content in one div; its children are the content. / 规范要求 xhtml 内容外包一层 div，里面才是内容。
+        val root = el.children("div").singleOrNull() ?: el
+        return buildString { root.childNodes.let { nodes -> for (i in 0 until nodes.length) markup(nodes.item(i), this) } }.trim()
+    }
+
+    private fun markup(node: Node, out: StringBuilder) {
+        when (node.nodeType) {
+            Node.TEXT_NODE, Node.CDATA_SECTION_NODE -> out.append(escape(node.nodeValue.orEmpty()))
+            Node.ELEMENT_NODE -> {
+                val el = node as Element
+                val name = el.local()
+                out.append('<').append(name)
+                val attrs = el.attributes
+                for (i in 0 until attrs.length) {
+                    val attr = attrs.item(i)
+                    if (attr.nodeName.startsWith("xmlns")) continue
+                    out.append(' ').append(attr.localName ?: attr.nodeName).append("=\"").append(escape(attr.nodeValue.orEmpty())).append('"')
+                }
+                if (name.lowercase() in VOID_ELEMENTS) {
+                    out.append(" />")
+                    return
+                }
+                out.append('>')
+                val nodes = el.childNodes
+                for (i in 0 until nodes.length) markup(nodes.item(i), out)
+                out.append("</").append(name).append('>')
+            }
+        }
+    }
+
+    private fun escape(text: String) = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
 
     private fun document(bytes: ByteArray): Element? = try {
         val factory = DocumentBuilderFactory.newInstance().apply {
@@ -159,6 +199,9 @@ object FeedParser {
         }
         builder.parse(InputSource(ByteArrayInputStream(bytes))).documentElement
     } catch (_: Exception) {
+        null
+    } catch (_: StackOverflowError) {
+        // Absurdly deep nesting; not worth the process. / 嵌套深得离谱；不值得为它让进程崩溃。
         null
     }
 
@@ -215,6 +258,7 @@ object FeedParser {
         "http://apache.org/xml/features/nonvalidating/load-external-dtd" to false,
     )
 
+    private val VOID_ELEMENTS = setOf("br", "hr", "img", "wbr", "source", "col", "area", "input", "meta", "link")
     private val FEED_TYPES = setOf("application/rss+xml", "application/atom+xml", "application/rdf+xml")
     private val LINK_TAG = Regex("(?is)<link\\b[^>]*>")
     private val ATTRIBUTE = Regex("([a-zA-Z-]+)\\s*=\\s*(\"([^\"]*)\"|'([^']*)'|([^\\s>]+))")

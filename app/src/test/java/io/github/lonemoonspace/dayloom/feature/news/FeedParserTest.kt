@@ -79,6 +79,19 @@ class FeedParserTest {
     }
 
     @Test
+    fun `Atom xhtml content keeps its markup, and an item with neither guid nor link is keyed by its title`() {
+        val atom = """<feed xmlns="http://www.w3.org/2005/Atom"><title>X</title><entry><id>1</id><title>T</title>
+              <content type="xhtml"><div xmlns="http://www.w3.org/1999/xhtml"><p>A <b>bold</b> &amp; <a href="https://e.org/?a=1&amp;b=2">link</a><br/>end</p></div></content>
+            </entry></feed>"""
+        assertEquals(
+            "<p>A <b>bold</b> &amp; <a href=\"https://e.org/?a=1&amp;b=2\">link</a><br />end</p>",
+            FeedParser.parse(atom.toByteArray())!!.items.single().html,
+        )
+        val rss = "<rss><channel><title>R</title><item><title>Only a title</title><description>D</description></item></channel></rss>"
+        assertEquals("Only a title", FeedParser.parse(rss.toByteArray())!!.items.single().key)
+    }
+
+    @Test
     fun `RSS 1_0 items sit next to the channel and use dc date and rdf about`() {
         val xml = """<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns="http://purl.org/rss/1.0/"
                      xmlns:dc="http://purl.org/dc/elements/1.1/">

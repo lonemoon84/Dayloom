@@ -1,6 +1,8 @@
 package io.github.lonemoonspace.dayloom.core.ui.theme
 
 import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.graphics.Color
 import io.github.lonemoonspace.dayloom.core.ui.STATUS_CHIP_TINT
 import kotlin.math.pow
@@ -78,7 +80,9 @@ class StatusColorsContrastTest {
 
     @Test
     fun `text on see-through cards keeps AA contrast over the page and over a weave thread`() {
-        for ((name, s, dark) in presetSchemes) {
+        // The wallpaper scheme changes with the phone; the M3 baseline stands in for it. / 壁纸配色随手机而变；用 M3 基线代替。
+        val wallpaper = listOf(Triple("wallpaper light (baseline)", lightColorScheme(), false), Triple("wallpaper dark (baseline)", darkColorScheme(), true))
+        for ((name, s, dark) in presetSchemes + wallpaper) {
             val solid = appSurfacesFor(s, dark)
             val clear = solid.overWeave()
             val thread = weaveColor(s, dark)

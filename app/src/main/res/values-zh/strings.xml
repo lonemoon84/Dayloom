@@ -605,6 +605,10 @@
     <string name="news_starter_english">English</string>
     <string name="news_tab_setup_feeds">请在「设置 → 新闻」里添加订阅源。</string>
     <string name="news_setup_feeds">新闻订阅源</string>
+    <string name="news_feed_error_too_large">内容过大</string>
+    <string name="news_opml_unreadable">无法把这个文件读成 OPML。</string>
+    <string name="news_feed_remove_title">删除「%1$s」？</string>
+    <string name="news_feed_remove_note">它的文章会一起删除，收藏的保留。</string>
     <string name="news_excerpt_only">订阅源只提供了摘要。</string>
     <plurals name="news_feeds_count">
         <item quantity="other">订阅源 · %1$d 个</item>

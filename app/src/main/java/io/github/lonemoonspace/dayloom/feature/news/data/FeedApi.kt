@@ -33,11 +33,13 @@ class FeedApi(private val http: OkHttpClient, private val io: CoroutineContext =
             val buffer = Buffer()
             try {
                 val source = response.body.source()
-                while (buffer.size <= MAX_BYTES && source.read(buffer, CHUNK) != -1L) Unit
+                while (buffer.size <= MAX_BYTES) {
+                    if (source.read(buffer, CHUNK) == -1L) break
+                }
             } catch (e: IOException) {
                 throw AppError.Network(e)
             }
-            if (buffer.size > MAX_BYTES) throw AppError.BadData(SERVICE, "feed larger than $MAX_BYTES bytes")
+            if (buffer.size > MAX_BYTES) return@withContext FetchResult.TooLarge
             FetchResult.Fetched(
                 bytes = buffer.readByteArray(),
                 etag = response.header("ETag").orEmpty(),

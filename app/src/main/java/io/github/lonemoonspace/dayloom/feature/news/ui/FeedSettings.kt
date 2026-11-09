@@ -120,17 +120,20 @@ internal fun SourcePicker(kind: NewsSourceKind, onPick: (NewsSourceKind) -> Unit
 @Composable
 internal fun FeedsForm(
     saved: NewsSettings,
+    loaded: Boolean,
     states: List<FeedState>,
     addFeed: suspend (String) -> AddFeedResult,
     update: ((NewsSettings) -> NewsSettings) -> Unit,
 ) {
     var adding by rememberSaveable { mutableStateOf(false) }
     var suggesting by rememberSaveable { mutableStateOf(false) }
+    /** Feeds added from the last OPML file, or -1 when it could not be read. / 上一个 OPML 文件添加的订阅源数；读不了时为 -1。 */
     var imported by remember { mutableStateOf<Int?>(null) }
+    var removing by remember { mutableStateOf<Feed?>(null) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    LaunchedEffect(saved.starterOffered, saved.feeds.isEmpty()) {
-        if (!saved.starterOffered && saved.feeds.isEmpty()) {
+    LaunchedEffect(loaded, saved.starterOffered, saved.feeds.isEmpty()) {
+        if (loaded && !saved.starterOffered && saved.feeds.isEmpty()) {
             suggesting = true
             update { it.copy(starterOffered = true) }
         }
@@ -147,11 +150,15 @@ internal fun FeedsForm(
                     null
                 }
             }
-            val found = bytes?.let { FeedParser.opml(it) }.orEmpty()
-            val before = saved.feeds.size
-            val after = FeedPolicy.add(saved.feeds, found).size
+            val found = bytes?.let { FeedParser.opml(it) }
+            if (found == null) {
+                imported = -1
+                return@launch
+            }
+            // Counted against the list as shown; the update below works on the saved list, so nothing is lost either way.
+            // 按界面上的列表计数；下面的更新基于已保存的列表，两边不一致也不会丢东西。
+            imported = FeedPolicy.add(saved.feeds, found).size - saved.feeds.size
             update { it.copy(feeds = FeedPolicy.add(it.feeds, found)) }
-            imported = after - before
         }
     }
 
@@ -164,7 +171,7 @@ internal fun FeedsForm(
     val byUrl = states.associateBy { it.url }
     val now = rememberMinuteTick()
     saved.feeds.forEach { feed ->
-        FeedRow(feed, byUrl[feed.url], now) { update { s -> s.copy(feeds = s.feeds.filter { it.url != feed.url }) } }
+        FeedRow(feed, byUrl[feed.url], now) { removing = feed }
     }
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         FilledTonalButton(onClick = { adding = true }, enabled = saved.feeds.size < FeedPolicy.MAX_FEEDS) { Text(stringResource(R.string.news_feed_add)) }
@@ -173,14 +180,38 @@ internal fun FeedsForm(
     }
     imported?.let { count ->
         Text(
-            if (count > 0) pluralStringResource(R.plurals.news_opml_imported, count, count) else stringResource(R.string.news_opml_none),
+            when {
+                count > 0 -> pluralStringResource(R.plurals.news_opml_imported, count, count)
+                count == 0 -> stringResource(R.string.news_opml_none)
+                else -> stringResource(R.string.news_opml_unreadable)
+            },
             style = MaterialTheme.typography.bodySmall,
-            color = if (count > 0) MaterialTheme.statusColors.green else MaterialTheme.colorScheme.onSurfaceVariant,
+            color = when {
+                count > 0 -> MaterialTheme.statusColors.green
+                count == 0 -> MaterialTheme.colorScheme.onSurfaceVariant
+                else -> MaterialTheme.colorScheme.error
+            },
         )
     }
     Hint(stringResource(R.string.news_feed_note))
 
     if (adding) AddFeedDialog(addFeed) { adding = false }
+    removing?.let { feed ->
+        // Its articles go with it on the next sync (starred ones stay), so one stray tap must not do that.
+        // 下一次同步会连同它的文章一起删除（收藏的保留），所以不能一次误触就删掉。
+        AlertDialog(
+            onDismissRequest = { removing = null },
+            title = { Text(stringResource(R.string.news_feed_remove_title, feed.title)) },
+            text = { Text(stringResource(R.string.news_feed_remove_note)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    update { s -> s.copy(feeds = s.feeds.filter { it.url != feed.url }) }
+                    removing = null
+                }) { Text(stringResource(R.string.news_feed_remove)) }
+            },
+            dismissButton = { TextButton(onClick = { removing = null }) { Text(stringResource(R.string.common_cancel)) } },
+        )
+    }
     if (suggesting) {
         StarterDialog(followed = saved.feeds.mapTo(HashSet()) { it.url }, onDismiss = { suggesting = false }) { picked ->
             update { it.copy(feeds = FeedPolicy.add(it.feeds, picked)) }
@@ -241,6 +272,7 @@ private fun feedErrorText(error: FeedError, code: Int): String = when (error) {
     FeedError.NETWORK -> stringResource(R.string.news_feed_error_network)
     FeedError.HTTP -> stringResource(R.string.news_feed_error_http, code)
     FeedError.NOT_A_FEED -> stringResource(R.string.news_feed_error_not_feed)
+    FeedError.TOO_LARGE -> stringResource(R.string.news_feed_error_too_large)
 }
 
 /**
@@ -326,12 +358,20 @@ private fun addFeedMessage(result: AddFeedResult?): String? = when (result) {
 private fun StarterDialog(followed: Set<String>, onDismiss: () -> Unit, onAdd: (List<Feed>) -> Unit) {
     val picked = remember { mutableStateListOf<String>() }
     val groups = StarterFeeds.grouped(currentLocale().language)
+    val full = followed.size + picked.size >= FeedPolicy.MAX_FEEDS
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.news_starter_title)) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 Hint(stringResource(R.string.news_starter_note))
+                if (full) {
+                    Text(
+                        stringResource(R.string.news_feed_full, FeedPolicy.MAX_FEEDS),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
                 groups.forEach { (language, feeds) ->
                     Text(
                         stringResource(languageName(language)),
@@ -342,13 +382,15 @@ private fun StarterDialog(followed: Set<String>, onDismiss: () -> Unit, onAdd: (
                     feeds.forEach { starter ->
                         val already = starter.url in followed
                         val checked = already || starter.url in picked
+                        // At the limit only ticked ones can change. / 到上限后只能取消已勾选的。
+                        val enabled = !already && (checked || !full)
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable(enabled = !already) { if (checked) picked.remove(starter.url) else picked.add(starter.url) },
+                                .clickable(enabled = enabled) { if (checked) picked.remove(starter.url) else picked.add(starter.url) },
                         ) {
-                            Checkbox(checked = checked, onCheckedChange = null, enabled = !already, modifier = Modifier.padding(12.dp))
+                            Checkbox(checked = checked, onCheckedChange = null, enabled = enabled, modifier = Modifier.padding(12.dp))
                             Column {
                                 Text(starter.title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
                                 Hint(FeedPolicy.hostOf(starter.url))

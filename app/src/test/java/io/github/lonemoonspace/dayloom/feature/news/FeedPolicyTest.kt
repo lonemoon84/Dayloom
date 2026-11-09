@@ -39,6 +39,7 @@ class FeedPolicyTest {
     fun `feed addresses are https only and keep their path and query`() {
         assertEquals("https://example.org/rss?x=1", FeedPolicy.normalizeFeedUrl("  example.org/rss?x=1 "))
         assertEquals("https://example.org/feed/", FeedPolicy.normalizeFeedUrl("HTTPS://example.org/feed/")?.lowercase())
+        assertEquals("the host is lower-cased, the path is not", "https://news.example.org/Feed?A=1", FeedPolicy.normalizeFeedUrl("https://News.Example.org/Feed?A=1"))
         assertNull(FeedPolicy.normalizeFeedUrl("http://example.org/rss"))
         assertNull(FeedPolicy.normalizeFeedUrl("ftp://example.org/rss"))
         assertNull(FeedPolicy.normalizeFeedUrl("not a url"))
@@ -121,6 +122,34 @@ class FeedPolicyTest {
         )
         assertEquals(setOf(dropped.id, readLongAgo.id, staleUnread.id), result.delete.toSet())
         assertTrue("a feed that failed this time leaves its articles alone", result.upsert.isEmpty())
+    }
+
+    @Test
+    fun `an old unread article still in the feed goes and is not added back, a read one stays while listed`() {
+        val stale = item("s", ageHours = FeedPolicy.MAX_AGE.toHours() + 1)
+        val unread = stored(a, "s", ageHours = FeedPolicy.MAX_AGE.toHours() + 1)
+        val first = FeedPolicy.merge(listOf(unread), mapOf(a.url to ParsedFeed("", listOf(stale))), listOf(a), now)
+        assertEquals(listOf(unread.id), first.delete)
+        assertTrue(FeedPolicy.merge(emptyList(), mapOf(a.url to ParsedFeed("", listOf(stale))), listOf(a), now).upsert.isEmpty())
+
+        val read = stored(a, "s", ageHours = FeedPolicy.MAX_AGE.toHours() + 1, read = true, readAt = now - NewsSyncPolicy.KEEP_READ.toMillis() - 1)
+        val listed = FeedPolicy.merge(listOf(read), mapOf(a.url to ParsedFeed("", listOf(stale))), listOf(a), now)
+        assertTrue("deleting it would bring it back unread", listed.delete.isEmpty())
+    }
+
+    @Test
+    fun `undated items count as new when the newest are picked`() {
+        val dated = (1..40).map { item("d$it", ageHours = it.toLong()) }
+        val undated = item("u").copy(publishedAt = 0)
+        val kept = FeedPolicy.newest(ParsedFeed("", dated + undated), now).items
+        assertEquals(FeedPolicy.ITEMS_PER_FEED, kept.size)
+        assertEquals("u", kept.first().key)
+    }
+
+    @Test
+    fun `the same feed listed twice is merged once`() {
+        val result = FeedPolicy.merge(emptyList(), mapOf(a.url to ParsedFeed("", listOf(item("1")))), listOf(a, a), now)
+        assertEquals(1, result.upsert.size)
     }
 
     @Test

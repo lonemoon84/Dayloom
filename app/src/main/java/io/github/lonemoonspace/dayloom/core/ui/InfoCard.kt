@@ -28,6 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.lonemoonspace.dayloom.R
+import io.github.lonemoonspace.dayloom.core.ui.theme.CARD_BORDER_WIDTH
 import io.github.lonemoonspace.dayloom.core.ui.theme.appSurfaces
 
 /**
@@ -55,7 +56,7 @@ fun InfoCard(
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .then(if (border != Color.Transparent) Modifier.border(0.5.dp, border, shape) else Modifier),
+            .then(if (border != Color.Transparent) Modifier.border(CARD_BORDER_WIDTH, border, shape) else Modifier),
         shape = shape,
         // A see-through card would show its own shadow through the fill as a grey haze, so it gets none.
         // 半透明的卡片会透出自己的阴影、显得发灰，所以不加阴影。

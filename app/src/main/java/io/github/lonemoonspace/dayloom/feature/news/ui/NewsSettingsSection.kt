@@ -49,6 +49,8 @@ import kotlinx.coroutines.launch
 @Composable
 internal fun NewsSettingsSection(
     saved: NewsSettings,
+    /** False until the saved settings have been read. / 读到已保存的设置之前为 false。 */
+    loaded: Boolean,
     token: SecretState,
     llmKey: SecretState,
     feedStates: List<FeedState>,
@@ -60,7 +62,7 @@ internal fun NewsSettingsSection(
     val kind = saved.kind()
     SourcePicker(kind) { picked -> update { it.copy(source = picked) } }
     when (kind) {
-        NewsSourceKind.RSS -> FeedsForm(saved, feedStates, addFeed, update)
+        NewsSourceKind.RSS -> FeedsForm(saved, loaded, feedStates, addFeed, update)
         NewsSourceKind.MINIFLUX -> {
             Hint(stringResource(R.string.news_server_note))
             ServerForm(saved.serverUrl, token, connect)

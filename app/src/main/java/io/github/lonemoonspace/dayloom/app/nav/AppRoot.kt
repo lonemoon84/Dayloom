@@ -289,7 +289,7 @@ private fun MainShell(graph: AppGraph, pendingIntent: Intent?, weave: Boolean) {
                 val surfaces = MaterialTheme.appSurfaces
                 CompositionLocalProvider(
                     LocalBarInsets provides padding,
-                    LocalAppSurfaces provides if (weave) surfaces.overWeave() else surfaces,
+                    LocalAppSurfaces provides remember(weave, surfaces) { if (weave) surfaces.overWeave() else surfaces },
                 ) {
                     NavHost(navController = navController, startDestination = Routes.HOME, modifier = Modifier.fillMaxSize()) {
                         composable(Routes.HOME) {

@@ -621,6 +621,10 @@
     <string name="news_starter_english">English</string>
     <string name="news_tab_setup_feeds">Add feeds under Settings → News.</string>
     <string name="news_setup_feeds">News feeds</string>
+    <string name="news_feed_error_too_large">too large</string>
+    <string name="news_opml_unreadable">Couldn\'t read this file as OPML.</string>
+    <string name="news_feed_remove_title">Remove “%1$s”?</string>
+    <string name="news_feed_remove_note">Its articles are removed with it; starred ones stay.</string>
     <string name="news_excerpt_only">The feed only provides an excerpt.</string>
     <plurals name="news_feeds_count">
         <item quantity="one">%1$d feed</item>

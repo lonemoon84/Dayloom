@@ -23,6 +23,7 @@ import io.github.lonemoonspace.dayloom.core.refresh.SourceResult
 import io.github.lonemoonspace.dayloom.core.refresh.Trigger
 import io.github.lonemoonspace.dayloom.core.secret.SecretState
 import io.github.lonemoonspace.dayloom.feature.news.data.FeedApi
+import io.github.lonemoonspace.dayloom.feature.news.data.FeedFinder
 import io.github.lonemoonspace.dayloom.feature.news.data.FeedSync
 import io.github.lonemoonspace.dayloom.feature.news.data.LlmApi
 import io.github.lonemoonspace.dayloom.feature.news.data.MinifluxApi
@@ -35,11 +36,8 @@ import io.github.lonemoonspace.dayloom.feature.news.domain.ArticleFilter
 import io.github.lonemoonspace.dayloom.feature.news.domain.ArticleOwner
 import io.github.lonemoonspace.dayloom.feature.news.domain.ArticleItem
 import io.github.lonemoonspace.dayloom.feature.news.domain.Feed
-import io.github.lonemoonspace.dayloom.feature.news.domain.FeedParser
 import io.github.lonemoonspace.dayloom.feature.news.domain.FeedPolicy
-import io.github.lonemoonspace.dayloom.feature.news.domain.FetchResult
 import io.github.lonemoonspace.dayloom.feature.news.domain.NewsSourceKind
-import io.github.lonemoonspace.dayloom.feature.news.domain.ParsedFeed
 import io.github.lonemoonspace.dayloom.feature.news.domain.NewsSyncPolicy
 import io.github.lonemoonspace.dayloom.feature.news.domain.StoredArticle
 import io.github.lonemoonspace.dayloom.feature.news.domain.SyncSummary
@@ -91,7 +89,10 @@ data class NewsSettings(
     /** OpenAI-compatible base, e.g. `https://api.example.org/v1`. / 兼容 OpenAI 的基础地址，如 `https://api.example.org/v1`。 */
     val llmUrl: String = "",
     val llmModel: String = "",
-    /** The server the stored articles came from (design §11.7); written by the sync. / 本地文章来自的服务器（设计文档 §11.7）；由同步写入。 */
+    /**
+     * The server the stored articles came from (design §11.7), or [FeedPolicy.OWNER] for feeds; written by the sync.
+     * 本地文章来自的服务器（设计文档 §11.7），来自订阅源时为 [FeedPolicy.OWNER]；由同步写入。
+     */
     val articlesFrom: String = "",
     /** Null until chosen; see [kind]. / 选择之前为 null；见 [kind]。 */
     val source: NewsSourceKind? = null,
@@ -109,9 +110,6 @@ data class NewsSettings(
 /** Saved values reach the source's inputs through DataStore within milliseconds; this is only a safety net. / 保存的值经 DataStore 几毫秒内就到达来源输入；这只是兜底。 */
 private const val INPUT_WAIT_MS = 5_000L
 
-/** Feed links on a web page tried when the page itself is not a feed. / 网页本身不是订阅源时，最多尝试它指向的几个订阅源链接。 */
-private const val MAX_DISCOVERED = 3
-
 /** Cached list items beyond the current list before the cache is pruned. / 缓存的列表项比当前列表多出这么多时才清理。 */
 private const val ITEM_CACHE_SLACK = 50
 
@@ -122,6 +120,7 @@ private class NewsInstance(private val ctx: ModuleContext) : ModuleInstance {
     private val articles = RoomArticleStore(ctx.database(NewsDatabase::class, *NewsDatabase.MIGRATIONS).articles())
     private val miniflux = MinifluxApi(ctx.http)
     private val feedApi = FeedApi(ctx.http)
+    private val finder = FeedFinder(feedApi)
     private val llm = LlmApi(ctx.http)
     private val owner = object : ArticleOwner {
         override suspend fun get() = store.get().articlesFrom
@@ -191,12 +190,16 @@ private class NewsInstance(private val ctx: ModuleContext) : ModuleInstance {
     override val tab = ModuleTab(label = R.string.news_title, icon = R.drawable.ic_news) { Tab() }
 
     override val settings = SettingsSection {
-        val saved by store.flow.collectAsStateWithLifecycle(initialValue = NewsSettings())
+        // Null until DataStore answers, so the first-use suggestions never pop up for someone who already has feeds.
+        // DataStore 应答之前为 null，已经有订阅源的人不会看到首次使用的推荐源弹出来。
+        val loaded by store.flow.collectAsStateWithLifecycle(initialValue = null)
+        val saved = loaded ?: NewsSettings()
         val tokenState by token.observe().collectAsStateWithLifecycle(initialValue = SecretState.EMPTY)
         val keyState by llmKey.observe().collectAsStateWithLifecycle(initialValue = SecretState.EMPTY)
         val snapshot by source.observe().collectAsStateWithLifecycle(initialValue = null)
         NewsSettingsSection(
             saved = saved,
+            loaded = loaded != null,
             token = tokenState,
             llmKey = keyState,
             feedStates = snapshot?.value?.feeds.orEmpty(),
@@ -218,7 +221,7 @@ private class NewsInstance(private val ctx: ModuleContext) : ModuleInstance {
         if (before.any { it.url == url }) return@async AddFeedResult.Exists
         if (before.size >= FeedPolicy.MAX_FEEDS) return@async AddFeedResult.Full
         try {
-            val (feedUrl, parsed) = findFeed(url) ?: return@async AddFeedResult.NotFound
+            val (feedUrl, parsed) = finder.find(url) ?: return@async AddFeedResult.NotFound
             if (store.get().feeds.any { it.url == feedUrl }) return@async AddFeedResult.Exists
             val title = parsed.title.ifBlank { FeedPolicy.hostOf(feedUrl) }
             store.update { it.copy(feeds = FeedPolicy.add(it.feeds, listOf(Feed(feedUrl, title)))) }
@@ -229,18 +232,6 @@ private class NewsInstance(private val ctx: ModuleContext) : ModuleInstance {
             AddFeedResult.Failed(e as? AppError ?: AppError.Unexpected(e))
         }
     }.await()
-
-    private suspend fun findFeed(url: String): Pair<String, ParsedFeed>? {
-        val page = feedApi.fetch(url, "", "") as? FetchResult.Fetched ?: return null
-        FeedParser.parse(page.bytes)?.let { return url to it }
-        val candidates = FeedParser.discover(String(page.bytes, Charsets.UTF_8), page.finalUrl.ifBlank { url })
-        for (candidate in candidates.take(MAX_DISCOVERED)) {
-            val feedUrl = FeedPolicy.normalizeFeedUrl(candidate) ?: continue
-            val fetched = feedApi.fetch(feedUrl, "", "") as? FetchResult.Fetched ?: continue
-            FeedParser.parse(fetched.bytes)?.let { return feedUrl to it }
-        }
-        return null
-    }
 
     /**
      * Saves the server (and a new token), waits until the sync source sees them, then syncs once through the coordinator.

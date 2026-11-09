@@ -2,6 +2,7 @@ package io.github.lonemoonspace.dayloom.feature.news
 
 import io.github.lonemoonspace.dayloom.core.error.AppError
 import io.github.lonemoonspace.dayloom.feature.news.data.FeedApi
+import io.github.lonemoonspace.dayloom.feature.news.data.FeedFinder
 import io.github.lonemoonspace.dayloom.feature.news.data.FeedSync
 import io.github.lonemoonspace.dayloom.feature.news.domain.ArticleFilter
 import io.github.lonemoonspace.dayloom.feature.news.domain.ArticleOwner
@@ -148,6 +149,53 @@ class FeedSyncTest {
     }
 
     @Test
+    fun `many feeds are merged batch by batch and an oversized one says so`() = runTest {
+        val feeds = (1..9).map { Feed("https://f$it.example.org/rss", "F$it") }
+        val answers = feeds.associate { f -> f.url to { FetchResult.Fetched(rss("${f.title}-1", "${f.title}-2")) as FetchResult } } +
+            (feeds[4].url to { FetchResult.TooLarge })
+        val summary = FeedSync(MemoryStore(), FakeFetcher(answers), MemoryOwner(), Mutex()).sync(feeds, emptyList(), now)
+        assertEquals(16, summary.unread)
+        assertEquals(FeedError.TOO_LARGE, summary.feeds.single { it.url == feeds[4].url }.error)
+    }
+
+    @Test
+    fun `no feeds deletes nothing`() = runTest {
+        val store = MemoryStore()
+        store.apply(MergeResult(listOf(StoredArticle(id = FeedPolicy.articleId(a.url, "1"), title = "kept")), emptyList()))
+        FeedSync(store, FakeFetcher(emptyMap()), MemoryOwner(FeedPolicy.OWNER), Mutex()).sync(emptyList(), emptyList(), now)
+        assertEquals(1, store.all().size)
+    }
+
+    @Test
+    fun `without network the other source's articles stay`() = runTest {
+        val store = MemoryStore()
+        store.apply(MergeResult(listOf(StoredArticle(id = 7, title = "Miniflux article")), emptyList()))
+        val owner = MemoryOwner("https://reader.example.org")
+        val fetcher = FakeFetcher(mapOf(a.url to { throw AppError.Network(IOException("down")) }))
+        runCatching { FeedSync(store, fetcher, owner, Mutex()).sync(listOf(a), emptyList(), now) }
+        assertEquals(listOf(7L), store.all().map { it.id })
+        assertEquals("https://reader.example.org", owner.value)
+    }
+
+    @Test
+    fun `a page's dead feed link is skipped and the next one is used`() = runTest {
+        val page = "https://site.example.org/"
+        val html = """<html><head><link rel="alternate" type="application/rss+xml" href="/dead.xml">
+            <link rel="alternate" type="application/atom+xml" href="https://site.example.org/live.xml"></head></html>"""
+        val fetcher = FakeFetcher(
+            mapOf(
+                page to { FetchResult.Fetched(html.toByteArray(), finalUrl = page) },
+                "https://site.example.org/dead.xml" to { throw AppError.Http(FeedApi.SERVICE, 404) },
+                "https://site.example.org/live.xml" to { FetchResult.Fetched(rss("1")) },
+            ),
+        )
+        val (url, feed) = FeedFinder(fetcher).find(page)!!
+        assertEquals("https://site.example.org/live.xml", url)
+        assertEquals("Site", feed.title)
+        assertEquals(null, FeedFinder(FakeFetcher(mapOf(page to { FetchResult.Fetched("<html></html>".toByteArray()) }))).find(page))
+    }
+
+    @Test
     fun `the HTTP fetcher sends validators, understands 304 and caps the body`() = runTest {
         val server = MockWebServer()
         server.start()
@@ -168,7 +216,7 @@ class FeedSyncTest {
             assertEquals(500, (runCatching { FeedApi(OkHttpClient()).fetch(url, "", "") }.exceptionOrNull() as AppError.Http).code)
 
             server.enqueue(MockResponse().setBody(okio.Buffer().write(ByteArray((FeedApi.MAX_BYTES + 10).toInt()))))
-            assertTrue(runCatching { FeedApi(OkHttpClient()).fetch(url, "", "") }.exceptionOrNull() is AppError.BadData)
+            assertEquals(FetchResult.TooLarge, FeedApi(OkHttpClient()).fetch(url, "", ""))
         } finally {
             server.shutdown()
         }

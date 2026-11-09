@@ -33,6 +33,10 @@ enum class FeedError {
     /** The address answered, but not with RSS, Atom or RDF. / 地址有应答，但不是 RSS、Atom 或 RDF。 */
     @SerialName("not_feed")
     NOT_A_FEED,
+
+    /** The body went past [io.github.lonemoonspace.dayloom.feature.news.data.FeedApi.MAX_BYTES]. / 正文超过了上限。 */
+    @SerialName("too_large")
+    TOO_LARGE,
 }
 
 /**
@@ -115,7 +119,14 @@ sealed interface FetchResult {
     /** 304: the validators still hold. / 304：校验值仍然有效。 */
     data object NotModified : FetchResult
 
-    /** The body as bytes, so the parser can honour the encoding the document declares. / 以字节返回正文，解析器才能按文档声明的编码读取。 */
+    /** The body was larger than a feed should ever be; it was not read to the end. / 正文比订阅源应有的大小大得多，没有读完。 */
+    data object TooLarge : FetchResult
+
+    /**
+     * The body as bytes, so the parser can honour the encoding the document declares; [finalUrl] is where redirects ended,
+     * which relative feed links on a page resolve against.
+     * 以字节返回正文，解析器才能按文档声明的编码读取；[finalUrl] 是重定向的终点，网页上的相对订阅链接以它为基准解析。
+     */
     class Fetched(val bytes: ByteArray, val etag: String = "", val lastModified: String = "", val finalUrl: String = "") : FetchResult
 }
 
