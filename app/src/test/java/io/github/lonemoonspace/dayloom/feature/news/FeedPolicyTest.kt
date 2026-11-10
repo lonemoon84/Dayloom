@@ -107,10 +107,10 @@ class FeedPolicyTest {
     }
 
     @Test
-    fun `articles go when their feed is dropped, read long ago or too old unread, unless starred`() {
+    fun `articles go when their feed is dropped or unread and too old, but read and starred ones stay`() {
         val dropped = stored(b, "1")
         val droppedStarred = stored(b, "2", starred = true)
-        val readLongAgo = stored(a, "3", read = true, readAt = now - NewsSyncPolicy.KEEP_READ.toMillis() - 1)
+        val readLongAgo = stored(a, "3", read = true, readAt = now - 400 * hour)
         val readRecently = stored(a, "4", read = true, readAt = now - hour)
         val staleUnread = stored(a, "5", ageHours = FeedPolicy.MAX_AGE.toHours() + 1)
         val staleStarred = stored(a, "6", ageHours = FeedPolicy.MAX_AGE.toHours() + 1, starred = true)
@@ -120,7 +120,8 @@ class FeedPolicyTest {
             feeds = listOf(a),
             nowMillis = now,
         )
-        assertEquals(setOf(dropped.id, readLongAgo.id, staleUnread.id), result.delete.toSet())
+        assertEquals(setOf(dropped.id, staleUnread.id), result.delete.toSet())
+        assertTrue("a read article is never deleted however long ago it was read", readLongAgo.id !in result.delete)
         assertTrue("a feed that failed this time leaves its articles alone", result.upsert.isEmpty())
     }
 
@@ -132,9 +133,22 @@ class FeedPolicyTest {
         assertEquals(listOf(unread.id), first.delete)
         assertTrue(FeedPolicy.merge(emptyList(), mapOf(a.url to ParsedFeed("", listOf(stale))), listOf(a), now).upsert.isEmpty())
 
-        val read = stored(a, "s", ageHours = FeedPolicy.MAX_AGE.toHours() + 1, read = true, readAt = now - NewsSyncPolicy.KEEP_READ.toMillis() - 1)
+        val read = stored(a, "s", ageHours = FeedPolicy.MAX_AGE.toHours() + 1, read = true, readAt = now - 400 * hour)
         val listed = FeedPolicy.merge(listOf(read), mapOf(a.url to ParsedFeed("", listOf(stale))), listOf(a), now)
-        assertTrue("deleting it would bring it back unread", listed.delete.isEmpty())
+        assertTrue("a read article is never deleted, listed or not", listed.delete.isEmpty())
+    }
+
+    @Test
+    fun `a read article the feed no longer lists stays, so its read state survives a sync`() {
+        val read = stored(a, "gone", read = true, readAt = now - 400 * hour)
+        val result = FeedPolicy.merge(
+            local = listOf(read),
+            fetched = mapOf(a.url to ParsedFeed("A", listOf(item("fresh")))),
+            feeds = listOf(a),
+            nowMillis = now,
+        )
+        assertTrue("read articles are never deleted automatically", result.delete.isEmpty())
+        assertTrue("nothing changed, so nothing to write", result.upsert.none { it.id == read.id })
     }
 
     @Test

@@ -61,6 +61,7 @@ import io.github.lonemoonspace.dayloom.core.i18n.asString
 import io.github.lonemoonspace.dayloom.core.ui.LocalAppClock
 import io.github.lonemoonspace.dayloom.core.ui.InfoCard
 import io.github.lonemoonspace.dayloom.core.ui.SkeletonLines
+import io.github.lonemoonspace.dayloom.core.ui.StatusChip
 import io.github.lonemoonspace.dayloom.core.ui.currentLocale
 import io.github.lonemoonspace.dayloom.core.ui.plusBars
 import io.github.lonemoonspace.dayloom.core.ui.rememberMinuteTick
@@ -261,11 +262,11 @@ private fun SearchField(query: String, onQuery: (String) -> Unit) {
 }
 
 /**
- * One article: an unread dot and the title, a star to toggle at the top right, a preview, then source, time and whether its
- * full text is saved. Read articles fall back to the secondary text colour rather than fading, so small text keeps its
- * contrast.
- * 一篇文章：未读圆点与标题，右上角可切换的星标，一段预览，然后是来源、时间以及全文是否已缓存。已读文章的文字退成次要色而不是
- * 整体变淡，小字的对比度才够。
+ * One article: an unread dot and the title, a star to toggle at the top right, a preview, then a read/unread tag, source,
+ * time and whether its full text is saved. Read articles fall back to the secondary text colour rather than fading, so
+ * small text keeps its contrast.
+ * 一篇文章：未读圆点与标题，右上角可切换的星标，一段预览，然后是已读/未读标签、来源、时间以及全文是否已缓存。已读文章的文字
+ * 退成次要色而不是整体变淡，小字的对比度才够。
  */
 @Composable
 private fun ArticleCard(item: ArticleItem, now: ZonedDateTime, showFullText: Boolean, onClick: () -> Unit, onToggleStar: () -> Unit) {
@@ -307,6 +308,12 @@ private fun ArticleCard(item: ArticleItem, now: ZonedDateTime, showFullText: Boo
                 )
             }
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 6.dp)) {
+                // The tag names the state in words, since colour alone is not a label. / 用文字写明状态：只有颜色不能算标签。
+                StatusChip(
+                    text = stringResource(if (read) R.string.news_tag_read else R.string.news_tag_unread),
+                    color = if (read) MaterialTheme.statusColors.gray else MaterialTheme.statusColors.rain,
+                )
+                Spacer(Modifier.width(8.dp))
                 Text(
                     article.feedTitle,
                     style = MaterialTheme.typography.labelLarge,

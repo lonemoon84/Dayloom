@@ -98,7 +98,7 @@ class NewsSyncPolicyTest {
     }
 
     @Test
-    fun `read articles go two weeks after they were read, not after they were published`() {
+    fun `read articles are kept however long ago they were read, so their state survives a sync`() {
         val old = 30 * day
         val local = listOf(
             stored(1, read = true, age = old).copy(readAt = now - 20 * day),
@@ -107,8 +107,8 @@ class NewsSyncPolicyTest {
             stored(4, read = true, age = old, pendingStarred = false).copy(readAt = now - 20 * day),
         )
         val result = NewsSyncPolicy.merge(local, unread = whole(), starred = whole(remote(2, read = true, starred = true, age = old)), sentRead = emptyMap(), sentStarred = emptyMap(), nowMillis = now)
-        assertEquals(listOf(1L), result.delete)
-        // An old article read just now is kept. / 刚读过的旧文章保留。
+        assertTrue("read articles are never deleted", result.delete.isEmpty())
+        // An old article read just now keeps readAt = now. / 刚读过的旧文章 readAt 记为现在。
         val fresh = NewsSyncPolicy.merge(listOf(stored(5, age = old)), whole(), whole(), emptyMap(), emptyMap(), now)
         assertTrue(fresh.delete.isEmpty())
         assertEquals(now, fresh.upsert.single().readAt)

@@ -559,6 +559,8 @@
     <string name="news_filter_unread">未读</string>
     <string name="news_filter_starred">收藏</string>
     <string name="news_filter_all">全部</string>
+    <string name="news_tag_unread">未读</string>
+    <string name="news_tag_read">已读</string>
     <string name="news_search_hint">搜索标题、来源或正文</string>
     <string name="news_search_clear">清除搜索</string>
     <string name="news_full_text">已缓存全文</string>

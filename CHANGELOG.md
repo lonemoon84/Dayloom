@@ -37,6 +37,9 @@ looks it up literally.
   title and excerpt a feed provides are shown; "Open original" is now the main button on an article.
 - News: the AI summary card only appears once the summary endpoint, model and key are set (a summary made earlier still
   shows). Opening the original on a phone with no app for the link no longer crashes.
+- News: each article in the list now shows an "Unread" or "Read" tag. Read articles are no longer deleted automatically
+  and keep their read state after a refresh or sync; only unread articles older than the feed window and articles of a
+  removed feed are still cleaned up.
 
 - 主题：设置里新增「外观与主题」卡片。除了默认的壁纸取色，还有五套精选配色：北欧晨曦、暖阳木棉、森林晨露（各有浅色与深色），
   以及只有深色的曜石极夜（页面纯黑）和深空暮紫。每个选项带三个色点，分别是页面、卡片和主色。浅色模式下只有深色的两套置灰，
@@ -60,6 +63,8 @@ looks it up literally.
   也有一行提示。只显示订阅源提供的标题和摘要，文章页的主按钮改成「打开原文」。
 - 新闻：AI 摘要卡片要在摘要接口、模型和 Key 都填好后才出现（以前生成的摘要照样显示）。手机上没有能打开链接的 App 时，
   点「打开原文」不再闪退。
+- 新闻：列表里每篇文章都显示「未读」或「已读」标签。已读文章不再自动删除，刷新或同步后已读状态依然保留；只清理超过保留期的
+  未读文章和被删除订阅源的文章。
 
 ## 0.2.5
 

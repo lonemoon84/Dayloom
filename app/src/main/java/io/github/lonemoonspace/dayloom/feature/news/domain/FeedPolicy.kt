@@ -94,12 +94,12 @@ object FeedPolicy {
      * Merges freshly read feeds into the stored articles. A known item keeps its read, starred and summary state and gets
      * the feed's current text; a new one comes in unread unless it is older than [MAX_AGE]. Unstarred articles go: all of
      * a feed no longer followed; unread ones older than [MAX_AGE], even while the feed still lists them (they are not added
-     * back); read ones [NewsSyncPolicy.KEEP_READ] after reading once the feed has dropped them, since deleting one it still
-     * lists would bring it back unread. Feeds missing from [fetched] (failed or unchanged) leave their articles as they are.
-     * Pending flags are cleared: there is no server to send them to.
+     * back). Read ones are no longer deleted on a schedule, so their read state survives a sync even after the feed drops
+     * them; they go only with their feed. Starred ones stay. Feeds missing from [fetched] (failed or unchanged) leave their
+     * articles as they are. Pending flags are cleared: there is no server to send them to.
      * 把刚读到的订阅源合并进本地文章。已有的条目保留已读、收藏与摘要，正文换成订阅源当前的内容；新条目以未读加入，早于 [MAX_AGE] 的
-     * 除外。未收藏的文章会删除：不再订阅的源的全部文章；超过 [MAX_AGE] 的未读文章，即使订阅源还列着（之后也不会再加回来）；已读的
-     * 在订阅源不再列出、且读过 [NewsSyncPolicy.KEEP_READ] 之后——订阅源还列着时删掉，下次会以未读的身份回来。不在 [fetched] 里的源
+     * 除外。未收藏的文章会删除：不再订阅的源的全部文章；超过 [MAX_AGE] 的未读文章，即使订阅源还列着（之后也不会再加回来）。已读文章
+     * 不再按时间自动删除，订阅源不再列出后已读状态照样保留，只有删除该源时才随之删除；收藏的保留。不在 [fetched] 里的源
      * （失败或没有变化）文章保持不动。待发送标记一律清除：没有服务器可发。
      */
     fun merge(local: List<StoredArticle>, fetched: Map<String, ParsedFeed>, feeds: List<Feed>, nowMillis: Long): MergeResult {
@@ -143,10 +143,9 @@ object FeedPolicy {
         for (old in local) {
             if (old.id in seen) continue
             val unfollowed = feedTagOf(old.id) !in followed
-            val readExpired = old.read && nowMillis - old.readAt > NewsSyncPolicy.KEEP_READ.toMillis()
             val unreadExpired = !old.read && nowMillis - old.publishedAt > maxAge
             when {
-                !old.starred && (unfollowed || readExpired || unreadExpired) -> delete += old.id
+                !old.starred && (unfollowed || unreadExpired) -> delete += old.id
                 old.pendingRead != null || old.pendingStarred != null -> upsert += old.copy(pendingRead = null, pendingStarred = null)
             }
         }

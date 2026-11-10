@@ -33,9 +33,6 @@ object NewsSyncPolicy {
     /** Entries per Miniflux request; [FETCH_LIMIT] takes a few pages. / 每次请求 Miniflux 取的条数；取满 [FETCH_LIMIT] 要翻几页。 */
     const val PAGE_SIZE = 200
 
-    /** Read, unstarred articles are kept this long after being read, so "All" still has something to show. / 已读且未收藏的文章在读过之后保留这么久，「全部」里才有东西看。 */
-    val KEEP_READ: Duration = Duration.ofDays(14)
-
     /**
      * Read states go out as they are. Miniflux's bookmark call toggles, so a star is only sent when the server's state is
      * known and differs: from the entry itself when the server listed it, else from a complete starred list; a star whose
@@ -64,9 +61,11 @@ object NewsSyncPolicy {
     /**
      * A local change wins until the value it holds has been pushed. Remote entries refresh the stored text but keep the
      * summary. An article that left a complete server list without a local change was read (or unstarred) elsewhere; a list
-     * cut off at [FETCH_LIMIT] proves nothing about the rest. Read, unstarred articles go [KEEP_READ] after they were read.
+     * cut off at [FETCH_LIMIT] proves nothing about the rest. Nothing is deleted here: read articles are kept so their read
+     * state survives every sync, and an article read elsewhere stays as read.
      * 本地修改在它的值被推送之前一直优先。服务器的条目更新本地正文，但保留摘要。没有本地修改、却从完整的服务器列表里消失的文章，
-     * 说明在别处读过（或取消了收藏）；被 [FETCH_LIMIT] 截断的列表对其余文章说明不了什么。已读且未收藏的文章在读过 [KEEP_READ] 后删除。
+     * 说明在别处读过（或取消了收藏）；被 [FETCH_LIMIT] 截断的列表对其余文章说明不了什么。这里不删除任何文章：已读文章保留，
+     * 其已读状态每次同步后都还在；在别处读过的文章也保持已读。
      */
     fun merge(
         local: List<StoredArticle>,
@@ -81,7 +80,6 @@ object NewsSyncPolicy {
         val unreadComplete = unread.complete
         val starredComplete = starred.complete
         val upsert = mutableListOf<StoredArticle>()
-        val delete = mutableListOf<Long>()
 
         fun readAt(old: StoredArticle?, read: Boolean) = if (!read) 0 else old?.readAt?.takeIf { it > 0 } ?: nowMillis
         fun stillPending(id: Long, pending: Boolean?, sent: Map<Long, Boolean>) = pending.takeUnless { it != null && sent[id] == it }
@@ -121,13 +119,9 @@ object NewsSyncPolicy {
                 pendingStarred = stillPending(old.id, old.pendingStarred, sentStarred),
                 readAt = readAt(old, read),
             )
-            val expired = read && !starred && nowMillis - updated.readAt > KEEP_READ.toMillis()
-            when {
-                expired && updated.pendingRead == null && updated.pendingStarred == null -> delete += old.id
-                updated != old -> upsert += updated
-            }
+            if (updated != old) upsert += updated
         }
-        return MergeResult(upsert, delete)
+        return MergeResult(upsert, emptyList())
     }
 
     /** Newest unread headlines on the home card. / 首页卡片上最新的未读标题条数。 */
